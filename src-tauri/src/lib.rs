@@ -1,3 +1,4 @@
+mod chrome;
 mod config;
 
 use config::Config;
@@ -40,13 +41,21 @@ async fn fetch_user_meta(email: String) -> Result<serde_json::Value, String> {
         .map_err(|e| format!("Odgovora strežnika ni mogoče prebrati: {e}"))
 }
 
+/// Spike: launches Chrome on our seeded profile and reports whether the
+/// avto.net session is still valid.
+#[tauri::command]
+async fn check_browser_session(app: tauri::AppHandle) -> Result<chrome::SessionCheck, String> {
+    chrome::check_session(app).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
-            fetch_user_meta
+            fetch_user_meta,
+            check_browser_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
