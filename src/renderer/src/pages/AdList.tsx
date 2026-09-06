@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import type { ActiveAd, AdType } from '@shared/types';
 
 const truncate = (str: string): string => (str.length > 35 ? `${str.slice(0, 35)}...` : str);
+
+const TYPE_LABELS: Record<AdType, string> = {
+  car: 'Osebno vozilo',
+  dostavna: 'Tovorno vozilo',
+  platisca: 'Platišča',
+};
 
 export default function AdList(): JSX.Element {
   const [ads, setAds] = useState<ActiveAd[]>([]);
@@ -15,20 +21,15 @@ export default function AdList(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const { type } = (location.state ?? {}) as { type?: AdType };
 
   useEffect(() => {
     const getAds = async (): Promise<void> => {
-      if (!type) {
-        setError('Vrsta oglasa ni določena.');
-        setLoading(false);
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
-        const fetched = await window.api.getAds(type);
+        // One list across all categories; each ad's real type is resolved
+        // later, from its own edit page.
+        const fetched = await window.api.getAds();
         // Newest first.
         setAds(fetched.slice().reverse());
       } catch (e) {
@@ -38,7 +39,7 @@ export default function AdList(): JSX.Element {
       }
     };
     getAds();
-  }, [type]);
+  }, []);
 
   useEffect(() => {
     setSelectedAds(selectAll ? new Set(ads.map((ad) => ad.adId)) : new Set());
@@ -54,7 +55,7 @@ export default function AdList(): JSX.Element {
 
   const handleSubmit = (): void => {
     const selected = ads.filter((ad) => selectedAds.has(ad.adId));
-    navigate('/obnavljanje', { state: { selected, pause, type, testMode } });
+    navigate('/obnavljanje', { state: { selected, pause, testMode } });
   };
 
   if (loading) {
@@ -137,6 +138,7 @@ export default function AdList(): JSX.Element {
             <img src={ad.photoUrl} alt={ad.name} className="mb-4 h-30 w-full rounded-md object-cover" />
             <p className="overflow-hidden text-sm font-bold text-ellipsis">{truncate(ad.name)}</p>
             <p className="text-sm">{ad.price}</p>
+            <p className="text-xs text-gray-400">{TYPE_LABELS[ad.sourceType]}</p>
             <input
               type="checkbox"
               checked={selectedAds.has(ad.adId)}

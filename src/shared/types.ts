@@ -7,6 +7,12 @@ export interface ActiveAd {
   photoUrl: string;
   adUrl: string;
   adId: string;
+  /**
+   * Which results list the ad was scraped from. The edit page is the
+   * authority on an ad's real type; this is only a fallback for when that
+   * heading cannot be read.
+   */
+  sourceType: AdType;
 }
 
 /** Persisted in electron-store under the `userData` key. */
@@ -29,7 +35,6 @@ export interface UserMeta {
 export interface RenewOptions {
   ads: ActiveAd[];
   pause: number;
-  adType: AdType;
   testMode: boolean;
 }
 
@@ -41,6 +46,8 @@ export interface RenewProgress {
   step: string;
   status: 'running' | 'done' | 'failed' | 'waiting';
   message?: string;
+  /** Resolved once the edit page has been read. */
+  adType?: AdType;
 }
 
 export interface BrowserStatus {

@@ -1,4 +1,4 @@
-import type { AdType } from '@shared/types';
+import type { ActiveAd, AdType } from '@shared/types';
 
 import { isLoggedIn, setupBrowser, type BrowserSession } from './browser';
 import { SLOW_TIMEOUT_MS } from './constants';
@@ -9,13 +9,12 @@ import { loginToAvtonet } from './renew-ad/login-to-avtonet';
 import { uploadImages } from './renew-ad/upload-images';
 
 export interface RenewAdParams {
-  adId: string;
+  ad: Pick<ActiveAd, 'adId' | 'sourceType'>;
   email: string;
   password: string;
   hdImages: boolean;
-  adType: AdType;
   testMode?: boolean;
-  onStep?: (step: string) => void;
+  onStep?: (step: string, adType?: AdType) => void;
 }
 
 /**
@@ -49,24 +48,25 @@ async function openSignedInSession(
 
 /**
  * Renews one ad: scrape the edit form, delete the original, recreate it with
- * slightly different values, then re-upload the photos. The result surfaces as
- * a brand-new listing in search.
+ * slightly different values, then re-upload the photos.
+ *
+ * The ad's type is read from its edit page rather than passed in, so every ad
+ * goes through this one flow regardless of category.
  */
 export const renewAd = async ({
-  adId,
+  ad,
   email,
   password,
   hdImages,
-  adType,
   testMode = false,
   onStep,
-}: RenewAdParams): Promise<void> => {
-  const step = (name: string): void => {
-    console.log('[RenewAd]', name, { adId });
-    onStep?.(name);
+}: RenewAdParams): Promise<AdType> => {
+  const step = (name: string, adType?: AdType): void => {
+    console.log('[RenewAd]', name, { adId: ad.adId, adType });
+    onStep?.(name, adType);
   };
 
-  console.log('[RenewAd] Start', { adId, adType, hdImages, testMode });
+  console.log('[RenewAd] Start', { adId: ad.adId, hdImages, testMode });
   const session = await openSignedInSession(email, password, step);
   const { page, release } = session;
 
@@ -75,22 +75,30 @@ export const renewAd = async ({
     page.setDefaultNavigationTimeout(SLOW_TIMEOUT_MS);
 
     step('branje oglasa');
-    const carData = await getCarData(page, adId, hdImages, adType, testMode);
+    const { carData, adType } = await getCarData(
+      page,
+      ad.adId,
+      hdImages,
+      ad.sourceType,
+      testMode,
+    );
+    step('vrsta oglasa prepoznana', adType);
 
     if (testMode) {
       console.log('[RenewAd] Test mode: skipping deleteOldAd');
     } else {
-      step('brisanje starega oglasa');
-      await deleteOldAd(page, adId);
+      step('brisanje starega oglasa', adType);
+      await deleteOldAd(page, ad.adId);
     }
 
-    step('ustvarjanje novega oglasa');
+    step('ustvarjanje novega oglasa', adType);
     await createNewAd(page, carData, adType);
 
-    step('nalaganje slik');
+    step('nalaganje slik', adType);
     await uploadImages(page, carData, adType);
 
-    console.log('[RenewAd] Done', { adId });
+    console.log('[RenewAd] Done', { adId: ad.adId, adType });
+    return adType;
   } finally {
     await release().catch(() => undefined);
   }

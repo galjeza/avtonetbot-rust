@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import type { AdType, BrowserStatus, UserData, UserMeta } from '@shared/types';
+import type { BrowserStatus, UserData, UserMeta } from '@shared/types';
 import { USER_API } from '../config';
 
 const UPDATE_POLL_MS = 60_000;
-
-const RENEW_LINKS: Array<{ type: AdType; label: string }> = [
-  { type: 'car', label: 'Obnovi avtomobile' },
-  { type: 'dostavna', label: 'Obnovi dostavna vozila' },
-  { type: 'platisca', label: 'Obnovi platišča' },
-];
 
 const linkClass =
   'block py-2 px-4 text-gray-200 bg-gray-800 hover:bg-gray-600 mb-2 border border-gray-600 rounded-lg transition ease-in-out duration-150';
@@ -167,11 +161,9 @@ export default function Menu(): JSX.Element {
           </button>
 
           {isSubscriptionActive && !updateAvailable ? (
-            RENEW_LINKS.map(({ type, label }) => (
-              <Link key={type} to="/adlist" state={{ type }} className={linkClass}>
-                {label}
-              </Link>
-            ))
+            <Link to="/adlist" className={linkClass}>
+              Obnovi oglase
+            </Link>
           ) : (
             <p className="text-red-400">
               {updateAvailable

@@ -5,14 +5,13 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
 import type {
   ActiveAd,
-  AdType,
   BrowserStatus,
   OpenFolderResult,
   RenewProgress,
   UserData,
 } from '@shared/types';
 import { checkBrowserSession, reseedBotProfile } from '../scraper/browser';
-import { fetchActiveAds } from '../scraper/get-active-ads';
+import { fetchAllActiveAds } from '../scraper/get-active-ads';
 import { renewAd } from '../scraper/renew-ad';
 import { getUserData, setUserData, store } from './store';
 import { initUpdater, isUpdateAvailable, simulateUpdateAvailable } from './updater';
@@ -55,7 +54,6 @@ async function handleRenewAds(
   _event: Electron.IpcMainInvokeEvent,
   ads: ActiveAd[],
   pause: number,
-  adType: AdType,
   testMode = false,
 ): Promise<string> {
   const userData = getUserData();
@@ -71,13 +69,13 @@ async function handleRenewAds(
       report({ index, total, adId: ad.adId, step: 'začetek', status: 'running' });
 
       await renewAd({
-        adId: ad.adId,
+        ad,
         email: userData.email,
         password: userData.password,
         hdImages: userData.hdImages ?? false,
-        adType,
         testMode,
-        onStep: (step) => report({ index, total, adId: ad.adId, step, status: 'running' }),
+        onStep: (step, adType) =>
+          report({ index, total, adId: ad.adId, step, status: 'running', adType }),
       });
 
       report({ index, total, adId: ad.adId, step: 'končano', status: 'done' });
@@ -108,12 +106,12 @@ app.whenReady().then(() => {
     event.returnValue = true;
   });
 
-  ipcMain.handle('get-ads', async (_event, adType: AdType): Promise<ActiveAd[]> => {
+  ipcMain.handle('get-ads', async (): Promise<ActiveAd[]> => {
     const userData = getUserData();
     if (!userData?.brokerId) {
       throw new Error('Manjka številka posrednika. Odprite konfiguracijo in shranite e-pošto.');
     }
-    return fetchActiveAds(userData.brokerId, adType);
+    return fetchAllActiveAds(userData.brokerId);
   });
 
   ipcMain.handle('renew-ads', handleRenewAds);

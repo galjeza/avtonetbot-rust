@@ -65,7 +65,7 @@ export const generateAdHashLegacyV1 = (f: CarField[], t: AdType): string =>
 export function getAdImagesDirectory(
   fields: CarField[],
   userDataPath: string,
-  adType: AdType = 'car',
+  adType: AdType,
 ): string {
   const dirFor = (h: string): string => path.join(userDataPath, 'AdImages', h);
 

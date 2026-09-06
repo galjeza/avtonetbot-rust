@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
   ActiveAd,
-  AdType,
   BrowserStatus,
   OpenFolderResult,
   RenewProgress,
@@ -17,10 +16,10 @@ const api = {
     set: (key: string, value: unknown): boolean => ipcRenderer.sendSync('store-set', key, value),
   },
 
-  getAds: (adType: AdType): Promise<ActiveAd[]> => ipcRenderer.invoke('get-ads', adType),
+  getAds: (): Promise<ActiveAd[]> => ipcRenderer.invoke('get-ads'),
 
-  renewAds: (ads: ActiveAd[], pause: number, adType: AdType, testMode: boolean): Promise<string> =>
-    ipcRenderer.invoke('renew-ads', ads, pause, adType, testMode),
+  renewAds: (ads: ActiveAd[], pause: number, testMode: boolean): Promise<string> =>
+    ipcRenderer.invoke('renew-ads', ads, pause, testMode),
 
   saveUserData: (userData: UserData): Promise<boolean> =>
     ipcRenderer.invoke('save-user-data', userData),

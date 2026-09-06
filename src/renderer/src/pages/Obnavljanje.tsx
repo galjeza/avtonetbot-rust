@@ -3,17 +3,22 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import type { ActiveAd, AdType, RenewProgress } from '@shared/types';
 
+const TYPE_LABELS: Record<AdType, string> = {
+  car: 'Osebno vozilo',
+  dostavna: 'Tovorno vozilo',
+  platisca: 'Platišča',
+};
+
 interface RenewState {
   selected: ActiveAd[];
   pause: number;
-  type: AdType;
   testMode: boolean;
 }
 
 export default function Obnavljanje(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selected = [], pause = 0, type, testMode = false } = (location.state ?? {}) as Partial<RenewState>;
+  const { selected = [], pause = 0, testMode = false } = (location.state ?? {}) as Partial<RenewState>;
 
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<RenewProgress | null>(null);
@@ -33,14 +38,14 @@ export default function Obnavljanje(): JSX.Element {
         navigate('/');
         return;
       }
-      if (selected.length === 0 || !type) {
+      if (selected.length === 0) {
         navigate('/');
         return;
       }
 
       setIsProcessing(true);
       try {
-        await window.api.renewAds(selected, pause, type, testMode);
+        await window.api.renewAds(selected, pause, testMode);
         navigate('/');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Napaka pri obnavljanju oglasov');
@@ -49,7 +54,7 @@ export default function Obnavljanje(): JSX.Element {
     };
 
     run();
-  }, [navigate, pause, selected, testMode, type]);
+  }, [navigate, pause, selected, testMode]);
 
   if (error) {
     return (
@@ -94,7 +99,10 @@ export default function Obnavljanje(): JSX.Element {
                 <p className="font-semibold">
                   Oglas {progress.index + 1} od {progress.total}
                 </p>
-                <p className="text-sm text-gray-300">{progress.step}</p>
+                <p className="text-sm text-gray-300">
+                  {progress.step}
+                  {progress.adType && ` — ${TYPE_LABELS[progress.adType]}`}
+                </p>
                 {progress.message && <p className="mt-1 text-sm text-red-300">{progress.message}</p>}
               </div>
             )}

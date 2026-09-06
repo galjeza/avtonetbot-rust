@@ -33,7 +33,7 @@ const getFileInput = async (page: Page): Promise<ElementHandle<HTMLInputElement>
 export const uploadImages = async (
   page: Page,
   carData: CarField[],
-  adType: AdType = 'car',
+  adType: AdType,
 ): Promise<void> => {
   const userDataPath = app.getPath('userData');
   console.log('[uploadImages] Start', { adType, maxRetries: MAX_RETRIES });

@@ -10,10 +10,17 @@ import { getAdImagesDirectory, type CarField } from '../utils/ad-images';
 import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/images';
 import { humanClick, humanReplace, jitteredWait } from '../utils/human';
 import { wait } from '../utils/wait';
+import { detectAdType } from './detect-ad-type';
 import { solveCaptcha } from './solve-captcha';
 
 export interface CarData extends Array<CarField> {
   imagePath?: string;
+}
+
+export interface CarDataResult {
+  carData: CarData;
+  /** Read from the edit page heading, not from the list the ad came from. */
+  adType: AdType;
 }
 
 const randomPriceOffset = (): number => {
@@ -39,19 +46,22 @@ export const getCarData = async (
   page: Page,
   adId: string,
   hdImages: boolean,
-  adType: AdType = 'car',
+  sourceType: AdType | undefined,
   testMode = false,
-): Promise<CarData> => {
+): Promise<CarDataResult> => {
   const userDataPath = app.getPath('userData');
   page.setDefaultTimeout(SLOW_TIMEOUT_MS);
   page.setDefaultNavigationTimeout(SLOW_TIMEOUT_MS);
 
   const editUrl = `${AVTONET_EDIT_PREFIX}${adId}`;
-  console.log('[getCarData] Start', { adId, adType, hdImages, editUrl, testMode });
+  console.log('[getCarData] Start', { adId, sourceType, hdImages, editUrl, testMode });
 
   await page.goto(editUrl, { timeout: 0 });
   await page.waitForSelector('button[name=ADVIEW]', { timeout: 0 });
   await wait(3);
+
+  // Resolve the type here, while nothing destructive has happened yet.
+  const adType = await detectAdType(page, sourceType);
 
   const textAreas = await page.$$eval('textarea', (nodes) =>
     nodes.map((n) => ({ name: (n as HTMLTextAreaElement).name, value: (n as HTMLTextAreaElement).value })),
@@ -176,6 +186,10 @@ export const getCarData = async (
     console.log('[getCarData] Images already downloaded', { path: adImagesDirectory });
   }
 
-  console.log('[getCarData] Done', { fields: carData.length, imageCount: adImages.length });
-  return carData;
+  console.log('[getCarData] Done', {
+    fields: carData.length,
+    imageCount: adImages.length,
+    adType,
+  });
+  return { carData, adType };
 };
