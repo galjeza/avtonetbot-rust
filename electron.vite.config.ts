@@ -14,7 +14,12 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
-    resolve: { alias: { '@shared': resolve('src/shared') } },
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared'),
+        '@': resolve('src/renderer/src'),
+      },
+    },
     plugins: [react(), tailwindcss()],
     build: {
       rollupOptions: { input: resolve('src/renderer/index.html') },

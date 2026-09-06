@@ -1,31 +1,45 @@
 import { MemoryRouter as Router, Route, Routes } from 'react-router-dom';
 
+import { AppLayout } from '@/components/app-layout';
+import { Toaster } from '@/components/ui/sonner';
+import { AccountProvider } from '@/lib/account';
+import { RenewProvider } from '@/lib/renew';
+
 import { MAINTENANCE_MESSAGE, MAINTENANCE_MODE, MAINTENANCE_TITLE } from './config';
-import AdList from './pages/AdList';
-import Menu from './pages/Menu';
-import Obnavljanje from './pages/Obnavljanje';
-import UpdateUser from './pages/UpdateUser';
+import Konfiguracija from './pages/Konfiguracija';
+import ObnoviOglase from './pages/ObnoviOglase';
+import Pregled from './pages/Pregled';
+import SlikeOglasov from './pages/SlikeOglasov';
 
 export default function App(): JSX.Element {
   if (MAINTENANCE_MODE) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-900 px-6 text-white">
-        <div className="w-full max-w-xl rounded-lg bg-gray-800 p-6 text-center shadow-md">
-          <h1 className="mb-4 text-2xl font-semibold">{MAINTENANCE_TITLE}</h1>
-          <p className="whitespace-pre-line text-gray-200">{MAINTENANCE_MESSAGE}</p>
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-xl space-y-3 text-center">
+          <h1 className="text-xl font-semibold">{MAINTENANCE_TITLE}</h1>
+          <p className="text-muted-foreground whitespace-pre-line text-sm">
+            {MAINTENANCE_MESSAGE}
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Menu />} />
-        <Route path="/adlist" element={<AdList />} />
-        <Route path="/update" element={<UpdateUser />} />
-        <Route path="/obnavljanje" element={<Obnavljanje />} />
-      </Routes>
-    </Router>
+    <AccountProvider>
+      <RenewProvider>
+        <Router>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<Pregled />} />
+              <Route path="/obnovi" element={<ObnoviOglase />} />
+              <Route path="/slike" element={<SlikeOglasov />} />
+              <Route path="/konfiguracija" element={<Konfiguracija />} />
+            </Route>
+          </Routes>
+        </Router>
+        <Toaster />
+      </RenewProvider>
+    </AccountProvider>
   );
 }
