@@ -28,8 +28,6 @@
         shellHook = ''
           # glib-networking provides the TLS backend WebKit needs for https://.
           export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
-          # WebKit's DMA-BUF renderer is unreliable under Wayland.
-          export WEBKIT_DISABLE_DMABUF_RENDERER=1
         '';
       };
     };
