@@ -24,6 +24,19 @@ const PORT_WAIT_TIMEOUT_MS = 30 * 1000;
 let launching: Promise<boolean> | null = null;
 
 /**
+ * How many sessions currently hold the browser, and whether we were the ones
+ * who started it.
+ *
+ * Concurrent callers share the launch promise above, so they all see
+ * `launched === true`. If each then closed the browser, the first close would
+ * tear down the page the others are still driving — which surfaces as
+ * "Navigating frame was detached". Ownership is tracked here instead, so only
+ * the last session out turns the lights off.
+ */
+let activeSessions = 0;
+let startedByUs = false;
+
+/**
  * Starts Chrome on our profile if it is not already running.
  *
  * @returns true when this call started it.
@@ -78,6 +91,8 @@ export async function setupBrowser(): Promise<BrowserSession> {
   const launched = await (launching ??= launchIfNeeded(chromePath).finally(() => {
     launching = null;
   }));
+  if (launched) startedByUs = true;
+  activeSessions += 1;
 
   const browser = await puppeteer.connect({
     browserWSEndpoint: await fetchBrowserWSEndpoint(),
@@ -89,7 +104,12 @@ export async function setupBrowser(): Promise<BrowserSession> {
   page.setDefaultTimeout(DEFAULT_TIMEOUT_MS);
   page.setDefaultNavigationTimeout(DEFAULT_TIMEOUT_MS);
 
+  let released = false;
   const release = async (): Promise<void> => {
+    if (released) return;
+    released = true;
+    activeSessions = Math.max(0, activeSessions - 1);
+
     try {
       if (!page.isClosed()) await page.close();
     } catch {
@@ -115,8 +135,21 @@ export async function isLoggedIn(page: Page): Promise<{ loggedIn: boolean; final
   return { loggedIn: finalUrl.startsWith(LOGIN_SUCCESS_URL), finalUrl };
 }
 
+/**
+ * Ends a session, and shuts Chrome down when we started it and nothing else is
+ * still using it. This is what callers should use instead of deciding for
+ * themselves whether to close.
+ */
+export async function endSession(session: BrowserSession): Promise<void> {
+  await session.release().catch(() => undefined);
+  if (startedByUs && activeSessions === 0) {
+    await closeBrowser().catch(() => undefined);
+  }
+}
+
 /** Shuts down the Chrome running on our profile, if there is one. */
 export async function closeBrowser(): Promise<void> {
+  startedByUs = false;
   if (!(await isPortOpen())) return;
 
   try {
@@ -149,15 +182,11 @@ export async function reseedBotProfile(): Promise<void> {
  * batch, say — leaves that alone.
  */
 export async function checkBrowserSession(): Promise<BrowserStatus> {
-  const { browser, page, release, profileSeeded, launched } = await setupBrowser();
+  const session = await setupBrowser();
   try {
-    const { loggedIn, finalUrl } = await isLoggedIn(page);
-    return { loggedIn, finalUrl, profileSeeded };
+    const { loggedIn, finalUrl } = await isLoggedIn(session.page);
+    return { loggedIn, finalUrl, profileSeeded: session.profileSeeded };
   } finally {
-    if (launched) {
-      await browser.close().catch(() => undefined);
-    } else {
-      await release().catch(() => undefined);
-    }
+    await endSession(session);
   }
 }

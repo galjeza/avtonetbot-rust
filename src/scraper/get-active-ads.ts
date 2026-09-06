@@ -2,7 +2,7 @@ import type { Page } from 'puppeteer-core';
 
 import type { ActiveAd, AdType } from '@shared/types';
 
-import { setupBrowser } from './browser';
+import { endSession, setupBrowser } from './browser';
 import { AVTONET_URLS, DEFAULT_TIMEOUT_MS } from './constants';
 
 const RESULTS_ROW_SELECTOR = '.GO-Results-Row';
@@ -122,7 +122,8 @@ async function scrapeResultsList(
  * renewal flow re-reads the real type from the ad's edit page.
  */
 export async function fetchAllActiveAds(brokerId: string): Promise<ActiveAd[]> {
-  const { browser, page, release, launched } = await setupBrowser();
+  const session = await setupBrowser();
+  const { page } = session;
 
   try {
     const seen = new Set<string>();
@@ -145,11 +146,6 @@ export async function fetchAllActiveAds(brokerId: string): Promise<ActiveAd[]> {
     console.log('[fetchAllActiveAds] Total', { count: all.length });
     return all;
   } finally {
-    // Same rule as the session check: close Chrome only if listing started it.
-    if (launched) {
-      await browser.close().catch(() => undefined);
-    } else {
-      await release().catch(() => undefined);
-    }
+    await endSession(session);
   }
 }

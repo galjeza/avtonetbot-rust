@@ -12,6 +12,7 @@ import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/i
 import { humanClick, humanReplace, jitteredWait } from '../utils/human';
 import { wait } from '../utils/wait';
 import { detectAdType } from './detect-ad-type';
+import { setWysiwygOpis } from './fill-form-fields';
 import { solveCaptcha } from './solve-captcha';
 
 export interface CarData extends Array<CarField> {
@@ -28,6 +29,14 @@ const randomPriceOffset = (): number => {
   const offset = Math.floor(Math.random() * 50) + 1;
   return Math.random() < 0.5 ? -offset : offset;
 };
+
+const RANDOM_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+/** Noise appended to the old ad's description so its text stops matching. */
+const randomSuffix = (length = 10): string =>
+  Array.from({ length }, () => RANDOM_CHARS[Math.floor(Math.random() * RANDOM_CHARS.length)]).join(
+    '',
+  );
 
 const randomRegistrationYear = (): string => {
   const currentYear = new Date().getFullYear();
@@ -137,6 +146,30 @@ export const getCarData = async (
         newYear,
       });
       await humanReplace(page, 'input[name="letoReg"]', newYear);
+    }
+
+    // avto.net keys its duplicate check on the VIN of the ad we are about to
+    // delete, so blanking it here lets the recreated ad reuse the real VIN
+    // without tripping "VIN already exists".
+    if (await page.$('input[name="VIN"]')) {
+      console.log('[getCarData] Clearing VIN on the old ad');
+      await humanReplace(page, 'input[name="VIN"]', '');
+    }
+
+    const vinObjavi = await page.$('#VINobjavi, input[name="VINobjavi"]');
+    if (vinObjavi && (await vinObjavi.evaluate((el) => (el as HTMLInputElement).checked))) {
+      console.log('[getCarData] Turning off "objavi VIN" on the old ad');
+      await humanClick(page, '#VINobjavi, input[name="VINobjavi"]');
+    }
+
+    // Break the description's text similarity, and keep the real price and
+    // registration year readable on the ad we are replacing.
+    if (htmlOpis !== null) {
+      const originalPrice = priceField?.value ?? '';
+      const originalYear = String(letoRegField?.value ?? '');
+      const marker = `${randomSuffix()} ${originalPrice} ${originalYear}`.trim();
+      console.log('[getCarData] Appending marker to description', { marker });
+      await setWysiwygOpis(page, `${htmlOpis}<p>${marker}</p>`);
     }
 
     console.log('[getCarData] Submitting edit form');

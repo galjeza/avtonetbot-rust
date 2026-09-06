@@ -14,6 +14,27 @@ declare global {
  * is not enough — the editor holds its own copy and overwrites it on submit —
  * so both are updated.
  */
+/**
+ * Writes the description on whichever page is open.
+ *
+ * Setting the underlying textarea alone is not enough — CKEditor holds its own
+ * copy and overwrites it on submit — so both are updated.
+ */
+export const setWysiwygOpis = async (page: Page, html: string): Promise<void> => {
+  await page.evaluate((value: string) => {
+    const textarea = (document.querySelector('#editor1') ??
+      document.querySelector('textarea[name="opombe"]')) as HTMLTextAreaElement | null;
+
+    if (textarea) textarea.value = value;
+
+    const editor = window.CKEDITOR?.instances?.editor1;
+    if (editor) editor.setData(value);
+  }, html);
+
+  await wait(2);
+};
+
+/** Reads the description out of scraped data and writes it to the open form. */
 export const fillWysiwygOpis = async (page: Page, carData: CarField[]): Promise<void> => {
   const htmlOpis = fieldValue(carData, 'htmlOpis') ?? fieldValue(carData, 'opombe');
   if (!htmlOpis) {
@@ -21,17 +42,7 @@ export const fillWysiwygOpis = async (page: Page, carData: CarField[]): Promise<
     return;
   }
 
-  await page.evaluate((html: string) => {
-    const textarea = (document.querySelector('#editor1') ??
-      document.querySelector('textarea[name="opombe"]')) as HTMLTextAreaElement | null;
-
-    if (textarea) textarea.value = html;
-
-    const editor = window.CKEDITOR?.instances?.editor1;
-    if (editor) editor.setData(html);
-  }, htmlOpis);
-
-  await wait(2);
+  await setWysiwygOpis(page, htmlOpis);
 };
 
 export const fillCheckboxesFromData = async (page: Page, carData: CarField[]): Promise<void> => {
