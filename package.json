@@ -1,28 +1,41 @@
 {
   "name": "avtonetbot",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
+  "version": "100.6.0",
+  "description": "Avtonet Bot \u2014 obnavljanje oglasov",
+  "author": "Gal Jeza",
+  "license": "MIT",
+  "main": "./out/main/index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "package": "npm run build && electron-builder --win --publish never"
   },
   "dependencies": {
-    "@heroui/react": "^3.2.4",
-    "@tailwindcss/vite": "^4.3.3",
-    "@tauri-apps/api": "^2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "tailwindcss": "^4.3.3"
+    "axios": "^1.7.9",
+    "electron-log": "^5.2.4",
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
+    "jimp": "^0.22.12",
+    "puppeteer-core": "^24.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^6.0.2",
-    "typescript": "~6.0.3",
-    "vite": "^8.0.16"
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^7.0.0"
   }
 }

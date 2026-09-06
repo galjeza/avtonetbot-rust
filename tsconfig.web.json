@@ -5,22 +5,15 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node"],
+    "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": [
-    "electron.vite.config.ts",
-    "src/main/**/*",
-    "src/preload/**/*",
-    "src/scraper/**/*",
-    "src/shared/**/*"
-  ]
+  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/preload/index.ts"]
 }
