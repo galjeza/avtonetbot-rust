@@ -47,6 +47,14 @@ const SKIP_ENTRIES = new Set([
   'OriginTrials',
   'TpcdMetadata',
   'PKIMetadata',
+  // The user's open windows and tabs. Copying these makes the bot browser
+  // reopen their entire session, and they are several megabytes besides.
+  'Sessions',
+  'Session Storage',
+  'Current Session',
+  'Current Tabs',
+  'Last Session',
+  'Last Tabs',
   // Locks
   'lockfile',
   'LOCK',

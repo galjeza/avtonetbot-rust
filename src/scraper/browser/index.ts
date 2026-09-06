@@ -16,6 +16,45 @@ import { botProfileDir, ensureBotProfile } from './profile';
 
 const PORT_WAIT_TIMEOUT_MS = 30 * 1000;
 
+/**
+ * Guards the launch step. Two concurrent callers would each see a closed debug
+ * port and each start a browser, so the second shares the first's promise
+ * rather than spawning its own.
+ */
+let launching: Promise<boolean> | null = null;
+
+/**
+ * Starts Chrome on our profile if it is not already running.
+ *
+ * @returns true when this call started it.
+ */
+async function launchIfNeeded(chromePath: string): Promise<boolean> {
+  if (await isPortOpen()) return false;
+
+  const proc = spawn(
+    chromePath,
+    [
+      `--remote-debugging-port=${DEBUG_PORT}`,
+      `--user-data-dir=${botProfileDir()}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      // Deliberately no --restore-last-session. The profile is a copy of the
+      // user's, so restoring would reopen every window and tab they had open
+      // when it was taken. The bot browser starts empty and we drive it.
+    ],
+    { detached: true, stdio: 'ignore' },
+  );
+  proc.unref();
+
+  if (!(await waitForDebugPort(PORT_WAIT_TIMEOUT_MS))) {
+    throw new Error(
+      'Chroma ni bilo mogoče zagnati z razhroščevalnim vratom. Zaprite vsa okna programa Chrome in poskusite znova.',
+    );
+  }
+
+  return true;
+}
+
 export { botProfileDir, ensureBotProfile } from './profile';
 
 export interface BrowserSession {
@@ -36,27 +75,9 @@ export async function setupBrowser(): Promise<BrowserSession> {
 
   const profileSeeded = ensureBotProfile();
 
-  const launched = !(await isPortOpen());
-  if (launched) {
-    const proc = spawn(
-      chromePath,
-      [
-        `--remote-debugging-port=${DEBUG_PORT}`,
-        `--user-data-dir=${botProfileDir()}`,
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--restore-last-session',
-      ],
-      { detached: true, stdio: 'ignore' },
-    );
-    proc.unref();
-
-    if (!(await waitForDebugPort(PORT_WAIT_TIMEOUT_MS))) {
-      throw new Error(
-        'Chroma ni bilo mogoče zagnati z razhroščevalnim vratom. Zaprite vsa okna programa Chrome in poskusite znova.',
-      );
-    }
-  }
+  const launched = await (launching ??= launchIfNeeded(chromePath).finally(() => {
+    launching = null;
+  }));
 
   const browser = await puppeteer.connect({
     browserWSEndpoint: await fetchBrowserWSEndpoint(),
