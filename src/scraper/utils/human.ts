@@ -16,7 +16,7 @@ import { waitMs } from './wait';
  * Log-normal delay. Humans cluster around a typical value with a long tail of
  * occasional slow reactions; a uniform random spread does not look like that.
  */
-export function humanDelayMs(baseMs = 500, spread = 100): number {
+function humanDelayMs(baseMs = 500, spread = 100): number {
   const u = Math.random();
   const v = Math.random();
   const z = Math.sqrt(-2 * Math.log(u || Number.EPSILON)) * Math.cos(2 * Math.PI * v);
@@ -54,7 +54,7 @@ let lastY = 0;
  * A straight, instant jump to an element centre is the tell that `page.click`
  * leaves behind.
  */
-export async function humanMouseMove(page: Page, targetX: number, targetY: number): Promise<void> {
+async function humanMouseMove(page: Page, targetX: number, targetY: number): Promise<void> {
   const startX = lastX;
   const startY = lastY;
 
@@ -107,22 +107,6 @@ export async function humanClick(page: Page, selector: string): Promise<void> {
   await page.mouse.down();
   await waitMs(40 + Math.random() * 80);
   await page.mouse.up();
-}
-
-/**
- * Types with a per-character delay instead of a constant one, and occasionally
- * hesitates the way a person does mid-word.
- */
-export async function humanType(page: Page, selector: string, text: string): Promise<void> {
-  await humanClick(page, selector);
-  await humanPause(180, 80);
-
-  for (const char of text) {
-    await page.keyboard.type(char, { delay: 0 });
-    await waitMs(55 + Math.random() * 110);
-    // Occasional longer pause, as if glancing away.
-    if (Math.random() < 0.06) await humanPause(320, 160);
-  }
 }
 
 /** Clears a field the way a person would, then types the replacement. */

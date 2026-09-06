@@ -1,15 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import type { ActiveAd, AdType } from '@shared/types';
+import { AD_TYPE_LABELS, type ActiveAd } from '@shared/types';
 
 const truncate = (str: string): string => (str.length > 35 ? `${str.slice(0, 35)}...` : str);
-
-const TYPE_LABELS: Record<AdType, string> = {
-  car: 'Osebno vozilo',
-  dostavna: 'Tovorno vozilo',
-  platisca: 'Platišča',
-};
 
 export default function AdList(): JSX.Element {
   const [ads, setAds] = useState<ActiveAd[]>([]);
@@ -138,7 +132,7 @@ export default function AdList(): JSX.Element {
             <img src={ad.photoUrl} alt={ad.name} className="mb-4 h-30 w-full rounded-md object-cover" />
             <p className="overflow-hidden text-sm font-bold text-ellipsis">{truncate(ad.name)}</p>
             <p className="text-sm">{ad.price}</p>
-            <p className="text-xs text-gray-400">{TYPE_LABELS[ad.sourceType]}</p>
+            <p className="text-xs text-gray-400">{AD_TYPE_LABELS[ad.sourceType]}</p>
             <input
               type="checkbox"
               checked={selectedAds.has(ad.adId)}

@@ -6,8 +6,10 @@ import type { ElementHandle, Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
 import { SLOW_TIMEOUT_MS } from '../constants';
-import { getAdImagesDirectory, type CarField } from '../utils/ad-images';
-import { randomWait, wait } from '../utils/wait';
+import { getAdImagesDirectory } from '../utils/ad-images';
+import { jitteredWait } from '../utils/human';
+import type { CarField } from '../utils/car-fields';
+import { wait } from '../utils/wait';
 
 const MAX_RETRIES = 3;
 const UPLOAD_SELECTORS = ['.mojtrg', '.ButtonAddPhoto', 'input[type=file]'];
@@ -56,7 +58,7 @@ export const uploadImages = async (
       }
       if (!foundSelector) throw new Error('Nismo na strani za nalaganje slik.');
 
-      await randomWait(2, 3);
+      await jitteredWait(2.5, 0.2);
 
       const infoIcon = await page.$('.fa.fa-info-circle.fa-lg');
       if (infoIcon) {

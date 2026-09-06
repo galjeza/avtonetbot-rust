@@ -1,6 +1,13 @@
 /** Ad categories avto.net exposes; each has its own results URL and new-ad flow. */
 export type AdType = 'car' | 'dostavna' | 'platisca';
 
+/** Wording matches the headings avto.net uses on its own edit pages. */
+export const AD_TYPE_LABELS: Record<AdType, string> = {
+  car: 'Osebno vozilo',
+  dostavna: 'Tovorno vozilo',
+  platisca: 'Platišča',
+};
+
 export interface ActiveAd {
   name: string;
   price: string;
@@ -30,12 +37,6 @@ export interface UserMeta {
   brokerId?: string;
   subscriptionPaidTo?: string;
   hdImages?: boolean;
-}
-
-export interface RenewOptions {
-  ads: ActiveAd[];
-  pause: number;
-  testMode: boolean;
 }
 
 /** Progress pushed from the main process while a batch runs. */

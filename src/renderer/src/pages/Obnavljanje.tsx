@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import type { ActiveAd, AdType, RenewProgress } from '@shared/types';
-
-const TYPE_LABELS: Record<AdType, string> = {
-  car: 'Osebno vozilo',
-  dostavna: 'Tovorno vozilo',
-  platisca: 'Platišča',
-};
+import { AD_TYPE_LABELS, type ActiveAd, type RenewProgress } from '@shared/types';
 
 interface RenewState {
   selected: ActiveAd[];
@@ -101,7 +95,7 @@ export default function Obnavljanje(): JSX.Element {
                 </p>
                 <p className="text-sm text-gray-300">
                   {progress.step}
-                  {progress.adType && ` — ${TYPE_LABELS[progress.adType]}`}
+                  {progress.adType && ` — ${AD_TYPE_LABELS[progress.adType]}`}
                 </p>
                 {progress.message && <p className="mt-1 text-sm text-red-300">{progress.message}</p>}
               </div>

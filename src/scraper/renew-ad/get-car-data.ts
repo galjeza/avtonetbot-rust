@@ -6,7 +6,8 @@ import type { Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
 import { AVTONET_EDIT_PREFIX, AVTONET_IMAGES_PREFIX, SLOW_TIMEOUT_MS } from '../constants';
-import { getAdImagesDirectory, type CarField } from '../utils/ad-images';
+import { getAdImagesDirectory } from '../utils/ad-images';
+import { field, type CarField } from '../utils/car-fields';
 import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/images';
 import { humanClick, humanReplace, jitteredWait } from '../utils/human';
 import { wait } from '../utils/wait';
@@ -122,7 +123,7 @@ export const getCarData = async (
       await humanReplace(page, 'input[name="cena"]', String(newPrice));
     }
 
-    const letoRegField = carData.find((d) => d.name === 'letoReg');
+    const letoRegField = field(carData, 'letoReg');
     if (letoRegField) {
       const newYear = randomRegistrationYear();
       console.log('[getCarData] Adjusting registration year', {

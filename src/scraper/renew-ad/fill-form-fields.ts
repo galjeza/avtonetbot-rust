@@ -1,6 +1,6 @@
 import type { Page } from 'puppeteer-core';
 
-import type { CarField } from '../utils/ad-images';
+import { field, fieldValue, type CarField } from '../utils/car-fields';
 import { wait } from '../utils/wait';
 
 declare global {
@@ -15,11 +15,8 @@ declare global {
  * so both are updated.
  */
 export const fillWysiwygOpis = async (page: Page, carData: CarField[]): Promise<void> => {
-  const source =
-    carData.find((d) => d.name === 'htmlOpis') ?? carData.find((d) => d.name === 'opombe');
-
-  const htmlOpis = source ? source.value : null;
-  if (!htmlOpis || typeof htmlOpis !== 'string') {
+  const htmlOpis = fieldValue(carData, 'htmlOpis') ?? fieldValue(carData, 'opombe');
+  if (!htmlOpis) {
     console.log('[fillWysiwygOpis] No htmlOpis/opombe value found in carData');
     return;
   }
@@ -47,13 +44,11 @@ export const fillCheckboxesFromData = async (page: Page, carData: CarField[]): P
       checked: (node as HTMLInputElement).checked,
     }));
 
-    let dataEntry = carData.find((d) => d.name === meta.name);
-
     // Brand-compatibility boxes all share the name "opombeznamka" and are only
     // distinguishable by value, so they are stored as "opombeznamka|BMW".
-    if (!dataEntry && meta.name === 'opombeznamka') {
-      dataEntry = carData.find((d) => d.name === `opombeznamka|${meta.value}`);
-    }
+    const dataEntry =
+      field(carData, meta.name) ??
+      (meta.name === 'opombeznamka' ? field(carData, `opombeznamka|${meta.value}`) : undefined);
 
     if (!dataEntry) continue;
 
@@ -71,8 +66,8 @@ export const fillInputsFromData = async (page: Page, carData: CarField[]): Promi
   for (const input of inputs) {
     try {
       const name = await input.evaluate((node) => (node as HTMLInputElement).name);
-      const value = carData.find((d) => d.name === name)?.value;
-      if (typeof value === 'string' && value) {
+      const value = fieldValue(carData, name);
+      if (value) {
         await input.click({ clickCount: 3 });
         await input.type(value);
       }
@@ -89,8 +84,8 @@ export const fillSelectsFromData = async (page: Page, carData: CarField[]): Prom
   for (const select of selects) {
     try {
       const name = await select.evaluate((node) => (node as HTMLSelectElement).name);
-      const value = carData.find((d) => d.name === name)?.value;
-      if (typeof value === 'string' && value) {
+      const value = fieldValue(carData, name);
+      if (value) {
         await select.select(value);
       }
     } catch {
@@ -109,8 +104,8 @@ export const fillTextareasFromData = async (page: Page, carData: CarField[]): Pr
       // would duplicate or corrupt the HTML.
       if (name === 'opombe') continue;
 
-      const value = carData.find((d) => d.name === name)?.value;
-      if (typeof value === 'string' && value) {
+      const value = fieldValue(carData, name);
+      if (value) {
         await textarea.click({ clickCount: 3 });
         await textarea.evaluate((node) => {
           (node as HTMLTextAreaElement).value = '';

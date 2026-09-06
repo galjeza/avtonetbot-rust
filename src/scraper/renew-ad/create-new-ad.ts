@@ -2,7 +2,7 @@ import type { Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
 import { newAdUrl, SLOW_TIMEOUT_MS } from '../constants';
-import type { CarField } from '../utils/ad-images';
+import { field, requireFieldValue, type CarField } from '../utils/car-fields';
 import { humanClick, jitteredWait } from '../utils/human';
 import {
   fillCheckboxesFromData,
@@ -34,9 +34,7 @@ export const createNewAd = async (
     await selectBrand(page, carData, adType);
     await selectModel(page, resolveModelValue(carData, adType));
 
-    const oblika = carData.find((d) => d.name === 'oblika');
-    if (!oblika) throw new Error('Polja "oblika" ni bilo mogoče najti.');
-    await page.select('select[name=oblika]', String(oblika.value));
+    await page.select('select[name=oblika]', requireFieldValue(carData, 'oblika', 'nov oglas'));
 
     await setRegistrationMonthYear(page, carData);
     await setFuelType(page, carData);
@@ -70,7 +68,7 @@ export const createNewAd = async (
   await fillSelectsFromData(page, carData);
   await fillTextareasFromData(page, carData);
 
-  const vinObjaviField = carData.find((d) => d.name === 'VINobjavi');
+  const vinObjaviField = field(carData, 'VINobjavi');
   if (adType === 'car' && vinObjaviField) {
     const shouldBeChecked = vinObjaviField.value === '1';
     const isChecked = await page.$eval('#VINobjavi', (el) => (el as HTMLInputElement).checked);

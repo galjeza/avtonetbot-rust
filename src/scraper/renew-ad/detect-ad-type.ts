@@ -16,7 +16,7 @@ const AD_TYPE_PATTERNS: Array<{ match: RegExp; adType: AdType }> = [
   { match: /pnevmatik|platišč|platisc/i, adType: 'platisca' },
 ];
 
-export async function readEditHeading(page: Page): Promise<string> {
+async function readEditHeading(page: Page): Promise<string> {
   return page.evaluate(() => {
     const headings = Array.from(document.querySelectorAll('h1'));
     const target = headings.find((h) => /urejanje oglasa/i.test(h.textContent ?? ''));
@@ -24,7 +24,7 @@ export async function readEditHeading(page: Page): Promise<string> {
   });
 }
 
-export function adTypeFromHeading(heading: string): AdType | null {
+function adTypeFromHeading(heading: string): AdType | null {
   return AD_TYPE_PATTERNS.find((p) => p.match.test(heading))?.adType ?? null;
 }
 

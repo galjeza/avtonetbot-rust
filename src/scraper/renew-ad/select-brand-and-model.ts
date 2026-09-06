@@ -1,7 +1,7 @@
 import type { Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
-import type { CarField } from '../utils/ad-images';
+import { field, fieldValue, requireFieldValue, type CarField } from '../utils/car-fields';
 import { wait } from '../utils/wait';
 
 export const selectBrand = async (
@@ -13,10 +13,8 @@ export const selectBrand = async (
     options.map((option) => (option as HTMLOptionElement).value),
   );
 
-  let znamkaData = carData.find((d) => d.name === 'znamka');
-  if (!znamkaData && adType === 'dostavna') {
-    znamkaData = carData.find((d) => d.name === 'znamkaTEMP');
-  }
+  // Delivery vehicles carry the brand in a different field.
+  const znamkaData = field(carData, 'znamka') ?? (adType === 'dostavna' ? field(carData, 'znamkaTEMP') : undefined);
   if (!znamkaData) {
     throw new Error(`Polja "znamka" ni bilo mogoče najti za vrsto oglasa: ${adType}`);
   }
@@ -36,18 +34,12 @@ export const selectBrand = async (
 
 export const resolveModelValue = (carData: CarField[], adType: AdType): string => {
   if (adType === 'dostavna') {
-    const modelTemp = carData.find((d) => d.name === 'modelTEMP');
-    if (modelTemp) return String(modelTemp.value);
-
-    const model = carData.find((d) => d.name === 'model');
-    if (model) return String(model.value);
-
+    const model = fieldValue(carData, 'modelTEMP') ?? fieldValue(carData, 'model');
+    if (model) return model;
     throw new Error('Za dostavno vozilo ni bilo mogoče najti polja modelTEMP ali model.');
   }
 
-  const model = carData.find((d) => d.name === 'model');
-  if (!model) throw new Error('Polja "model" ni bilo mogoče najti.');
-  return String(model.value);
+  return requireFieldValue(carData, 'model', 'nov oglas');
 };
 
 const normalizeModelValue = (value: string): string =>

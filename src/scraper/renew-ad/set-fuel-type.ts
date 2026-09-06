@@ -1,6 +1,6 @@
 import type { Page } from 'puppeteer-core';
 
-import type { CarField } from '../utils/ad-images';
+import { fieldValue, type CarField } from '../utils/car-fields';
 
 /**
  * Maps the fuel label scraped from the edit page onto the new-ad page's radio
@@ -21,11 +21,11 @@ const resolveRadioId = (text: string | null | undefined): string | null => {
 };
 
 export const setFuelType = async (page: Page, carData: CarField[]): Promise<void> => {
-  const gorivoText = carData.find((d) => d.name === 'gorivoText');
-  const fromText = resolveRadioId(gorivoText?.value as string | undefined);
+  const gorivoText = fieldValue(carData, 'gorivoText');
+  const fromText = resolveRadioId(gorivoText);
 
   console.log('[setFuelType] Selecting fuel type', {
-    gorivoText: gorivoText?.value ?? null,
+    gorivoText: gorivoText ?? null,
     resolvedRadioId: fromText,
   });
 
@@ -41,7 +41,7 @@ export const setFuelType = async (page: Page, carData: CarField[]): Promise<void
     );
     console.log('[setFuelType] No match for scraped gorivo text. Page radios:', dom);
     throw new Error(
-      `Vrste goriva "${String(gorivoText?.value)}" ni bilo mogoče preslikati na izbiro na strani.`,
+      `Vrste goriva "${String(gorivoText)}" ni bilo mogoče preslikati na izbiro na strani.`,
     );
   }
 
