@@ -51,9 +51,3 @@ export function initUpdater(): void {
 
   autoUpdater.checkForUpdates().catch((e) => console.error('Update check failed', e));
 }
-
-/** Test hook so the update banner can be exercised without a real release. */
-export function simulateUpdateAvailable(): boolean {
-  updateAvailable = true;
-  return true;
-}

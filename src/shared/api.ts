@@ -25,7 +25,6 @@ export interface Api {
   checkBrowserSession(): Promise<BrowserStatus>;
   reseedBrowserProfile(): Promise<BrowserStatus>;
   openAdImagesFolder(): Promise<OpenFolderResult>;
-  devTriggerUpdate(): Promise<boolean>;
 
   /** Subscribes to batch progress; returns an unsubscribe function. */
   onRenewProgress(callback: (progress: RenewProgress) => void): () => void;

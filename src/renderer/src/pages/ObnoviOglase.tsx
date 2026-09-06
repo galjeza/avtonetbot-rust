@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleAlert, Loader2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -43,41 +43,26 @@ export default function ObnoviOglase(): JSX.Element {
   const [pause, setPause] = useState(60);
   const [testMode, setTestMode] = useState(false);
 
-  /**
-   * Only one load may be in flight. StrictMode double-invokes the effect below
-   * in development, and each call drives its own browser tab, so without this
-   * two scrapes race over the same Chrome.
-   */
-  const loading_ = useRef<Promise<void> | null>(null);
-
   const load = useCallback(async (): Promise<void> => {
-    if (loading_.current) return loading_.current;
-
     setLoading(true);
     setLoadError(null);
-
-    const run = (async (): Promise<void> => {
-      try {
-        const fetched = await window.api.getAds();
-        setAds(fetched.slice().reverse());
-      } catch (e) {
-        setLoadError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setLoading(false);
-        loading_.current = null;
-      }
-    })();
-
-    loading_.current = run;
-    return run;
+    try {
+      const fetched = await window.api.getAds();
+      setAds(fetched.slice().reverse());
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     // Renewal deletes the original ad, so nothing here runs — not even the
-    // listing — until every precondition holds.
+    // listing — until every precondition holds. Depends on `ready` alone:
+    // including `pending` would re-run this whenever a check restarts, which
+    // would fetch the list a second time.
     if (ready) load();
-    else if (!pending) setLoading(false);
-  }, [ready, pending, load]);
+  }, [ready, load]);
 
   const allSelected = ads.length > 0 && selected.size === ads.length;
 

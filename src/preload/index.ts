@@ -33,8 +33,6 @@ const api = {
 
   openAdImagesFolder: (): Promise<OpenFolderResult> => ipcRenderer.invoke('open-ad-images-folder'),
 
-  devTriggerUpdate: (): Promise<boolean> => ipcRenderer.invoke('dev-trigger-update'),
-
   /** Subscribes to batch progress; returns an unsubscribe function. */
   onRenewProgress: (callback: (progress: RenewProgress) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: RenewProgress): void =>

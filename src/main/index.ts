@@ -14,7 +14,7 @@ import { checkBrowserSession, closeBrowser, reseedBotProfile } from '../scraper/
 import { fetchAllActiveAds } from '../scraper/get-active-ads';
 import { renewAd } from '../scraper/renew-ad';
 import { getUserData, setUserData, store } from './store';
-import { initUpdater, isUpdateAvailable, simulateUpdateAvailable } from './updater';
+import { initUpdater, isUpdateAvailable } from './updater';
 
 const isDev = !app.isPackaged;
 
@@ -175,10 +175,6 @@ app.whenReady().then(() => {
     const error = await shell.openPath(adImagesPath);
     return error ? { ok: false, error } : { ok: true };
   });
-
-  if (isDev) {
-    ipcMain.handle('dev-trigger-update', () => simulateUpdateAvailable());
-  }
 
   createWindow();
   if (!isDev) initUpdater();

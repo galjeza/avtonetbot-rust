@@ -4,7 +4,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -33,39 +32,19 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Only one check may be in flight.
-   *
-   * Two overlapping checks each see a closed debug port, each start their own
-   * Chrome, and then one closes the browser out from under the other — which
-   * surfaces as "Navigating frame was detached". StrictMode double-invokes
-   * this effect in development, and an impatient double-click does the same in
-   * production, so callers share the running promise instead.
-   */
-  const inFlight = useRef<Promise<void> | null>(null);
-
   const check = useCallback(async (reseed = false): Promise<void> => {
-    if (inFlight.current) return inFlight.current;
-
     setChecking(true);
     setError(null);
-
-    const run = (async (): Promise<void> => {
-      try {
-        setStatus(
-          reseed ? await window.api.reseedBrowserProfile() : await window.api.checkBrowserSession(),
-        );
-      } catch (e) {
-        setStatus(null);
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setChecking(false);
-        inFlight.current = null;
-      }
-    })();
-
-    inFlight.current = run;
-    return run;
+    try {
+      setStatus(
+        reseed ? await window.api.reseedBrowserProfile() : await window.api.checkBrowserSession(),
+      );
+    } catch (e) {
+      setStatus(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChecking(false);
+    }
   }, []);
 
   useEffect(() => {
