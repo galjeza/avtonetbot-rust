@@ -84,9 +84,7 @@ export default function Konfiguracija(): JSX.Element {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p className="text-muted-foreground text-xs">
-              Shranjeno lokalno na tem računalniku.
-            </p>
+            <p className="text-muted-foreground text-xs">Shranjeno lokalno na tem računalniku.</p>
           </div>
 
           <div className="grid gap-2">

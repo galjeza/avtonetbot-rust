@@ -65,7 +65,10 @@ export const getCarData = async (
   const adType = await detectAdType(page, sourceType);
 
   const textAreas = await page.$$eval('textarea', (nodes) =>
-    nodes.map((n) => ({ name: (n as HTMLTextAreaElement).name, value: (n as HTMLTextAreaElement).value })),
+    nodes.map((n) => ({
+      name: (n as HTMLTextAreaElement).name,
+      value: (n as HTMLTextAreaElement).value,
+    })),
   );
 
   const checkboxes = await page.$$eval('input[type=checkbox]', (nodes) =>
@@ -85,13 +88,16 @@ export const getCarData = async (
       return {
         name: select.name,
         value: select.value,
-        selectedText: opt ? opt.textContent?.trim() ?? null : null,
+        selectedText: opt ? (opt.textContent?.trim() ?? null) : null,
       };
     }),
   );
 
   const inputs = await page.$$eval('input', (nodes) =>
-    nodes.map((n) => ({ name: (n as HTMLInputElement).name, value: (n as HTMLInputElement).value })),
+    nodes.map((n) => ({
+      name: (n as HTMLInputElement).name,
+      value: (n as HTMLInputElement).value,
+    })),
   );
 
   // Read the description from the textarea CKEditor binds to, rather than
@@ -144,7 +150,9 @@ export const getCarData = async (
   await page.goto(`${AVTONET_IMAGES_PREFIX}${adId}`, { timeout: 0 });
   await wait(3);
 
-  const allImgSrcs = await page.$$eval('img', (imgs) => imgs.map((img) => (img as HTMLImageElement).src));
+  const allImgSrcs = await page.$$eval('img', (imgs) =>
+    imgs.map((img) => (img as HTMLImageElement).src),
+  );
   let adImages = allImgSrcs.filter((src) => src.includes('images.avto.net'));
 
   if (adImages.length === 0) {

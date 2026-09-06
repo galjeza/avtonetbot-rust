@@ -29,8 +29,7 @@ const api = {
 
   checkBrowserSession: (): Promise<BrowserStatus> => ipcRenderer.invoke('check-browser-session'),
 
-  reseedBrowserProfile: (): Promise<BrowserStatus> =>
-    ipcRenderer.invoke('reseed-browser-profile'),
+  reseedBrowserProfile: (): Promise<BrowserStatus> => ipcRenderer.invoke('reseed-browser-profile'),
 
   openAdImagesFolder: (): Promise<OpenFolderResult> => ipcRenderer.invoke('open-ad-images-folder'),
 

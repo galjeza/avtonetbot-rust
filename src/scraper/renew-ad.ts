@@ -75,13 +75,7 @@ export const renewAd = async ({
     page.setDefaultNavigationTimeout(SLOW_TIMEOUT_MS);
 
     step('branje oglasa');
-    const { carData, adType } = await getCarData(
-      page,
-      ad.adId,
-      hdImages,
-      ad.sourceType,
-      testMode,
-    );
+    const { carData, adType } = await getCarData(page, ad.adId, hdImages, ad.sourceType, testMode);
     step('vrsta oglasa prepoznana', adType);
 
     if (testMode) {

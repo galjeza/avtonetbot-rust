@@ -45,7 +45,12 @@ export async function reduceSharpnessDesaturateAndBlurEdges(imagePath: string): 
   const heavilyBlurredEdgesImage = image.clone().gaussian(1);
   const center = image
     .clone()
-    .crop(edgeWidth, edgeWidth, image.bitmap.width - 2 * edgeWidth, image.bitmap.height - 2 * edgeWidth);
+    .crop(
+      edgeWidth,
+      edgeWidth,
+      image.bitmap.width - 2 * edgeWidth,
+      image.bitmap.height - 2 * edgeWidth,
+    );
   heavilyBlurredEdgesImage.composite(center, edgeWidth, edgeWidth);
 
   await heavilyBlurredEdgesImage.writeAsync(imagePath);

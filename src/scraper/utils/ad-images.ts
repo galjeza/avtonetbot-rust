@@ -26,7 +26,10 @@ const VEHICLE_FIELDS = {
 type Scheme = keyof typeof VEHICLE_FIELDS;
 
 const sanitize = (value: string): string =>
-  value.toLowerCase().replace(/\s/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  value
+    .toLowerCase()
+    .replace(/\s/g, '_')
+    .replace(/[^a-zA-Z0-9_]/g, '');
 
 /** The "simple" scheme concatenates values only; the legacy ones prefix names. */
 function hash(fields: CarField[], adType: AdType, scheme: Scheme, includeName: boolean): string {
@@ -38,7 +41,6 @@ function hash(fields: CarField[], adType: AdType, scheme: Scheme, includeName: b
   }
   return sanitize(out);
 }
-
 
 export function getAdImagesDirectory(
   fields: CarField[],

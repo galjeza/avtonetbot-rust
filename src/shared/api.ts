@@ -1,10 +1,4 @@
-import type {
-  ActiveAd,
-  BrowserStatus,
-  OpenFolderResult,
-  RenewProgress,
-  UserData,
-} from './types';
+import type { ActiveAd, BrowserStatus, OpenFolderResult, RenewProgress, UserData } from './types';
 
 /**
  * The surface the preload script exposes on `window.api`.

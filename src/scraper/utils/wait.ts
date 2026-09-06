@@ -3,4 +3,3 @@ export const wait = (seconds: number): Promise<void> =>
 
 export const waitMs = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
-

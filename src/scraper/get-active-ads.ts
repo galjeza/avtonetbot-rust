@@ -24,7 +24,9 @@ async function scrapeResultsList(
   brokerId: string,
   adType: AdType,
 ): Promise<ActiveAd[]> {
-  await page.goto(`${AVTONET_URLS[adType]}${brokerId}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${AVTONET_URLS[adType]}${brokerId}`, {
+    waitUntil: 'domcontentloaded',
+  });
 
   const ads: ActiveAd[] = [];
 
@@ -54,7 +56,12 @@ async function scrapeResultsList(
     // One round-trip for the whole page rather than per-row queries.
     const pageAds = await page.evaluate(
       (rowSelector: string, priceSelectors: string[]) => {
-        const results: Array<{ name: string; price: string; photoUrl: string; adUrl: string }> = [];
+        const results: Array<{
+          name: string;
+          price: string;
+          photoUrl: string;
+          adUrl: string;
+        }> = [];
 
         for (const row of Array.from(document.querySelectorAll(rowSelector))) {
           const photoEl = row.querySelector('.GO-Results-Photo');
@@ -88,7 +95,11 @@ async function scrapeResultsList(
     );
 
     for (const ad of pageAds) {
-      ads.push({ ...ad, adId: ad.adUrl.split('=')[1] ?? '', sourceType: adType });
+      ads.push({
+        ...ad,
+        adId: ad.adUrl.split('=')[1] ?? '',
+        sourceType: adType,
+      });
     }
 
     const nextPageUrl = await page.evaluate((selector: string) => {
@@ -111,7 +122,7 @@ async function scrapeResultsList(
  * renewal flow re-reads the real type from the ad's edit page.
  */
 export async function fetchAllActiveAds(brokerId: string): Promise<ActiveAd[]> {
-  const { page, release } = await setupBrowser();
+  const { browser, page, release, launched } = await setupBrowser();
 
   try {
     const seen = new Set<string>();
@@ -119,7 +130,10 @@ export async function fetchAllActiveAds(brokerId: string): Promise<ActiveAd[]> {
 
     for (const adType of AD_TYPES) {
       const ads = await scrapeResultsList(page, brokerId, adType);
-      console.log('[fetchAllActiveAds] Scraped list', { adType, count: ads.length });
+      console.log('[fetchAllActiveAds] Scraped list', {
+        adType,
+        count: ads.length,
+      });
 
       for (const ad of ads) {
         if (!ad.adId || seen.has(ad.adId)) continue;
@@ -131,6 +145,11 @@ export async function fetchAllActiveAds(brokerId: string): Promise<ActiveAd[]> {
     console.log('[fetchAllActiveAds] Total', { count: all.length });
     return all;
   } finally {
-    await release();
+    // Same rule as the session check: close Chrome only if listing started it.
+    if (launched) {
+      await browser.close().catch(() => undefined);
+    } else {
+      await release().catch(() => undefined);
+    }
   }
 }

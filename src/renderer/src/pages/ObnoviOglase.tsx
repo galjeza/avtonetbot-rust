@@ -134,9 +134,7 @@ export default function ObnoviOglase(): JSX.Element {
                 )}
               </div>
               <p className="mt-1">{progress.step}</p>
-              {progress.message && (
-                <p className="text-destructive mt-1">{progress.message}</p>
-              )}
+              {progress.message && <p className="text-destructive mt-1">{progress.message}</p>}
             </div>
           )}
 
@@ -221,7 +219,13 @@ export default function ObnoviOglase(): JSX.Element {
         <CardFooter className="flex-wrap items-center gap-4">
           <Button
             disabled={selected.size === 0}
-            onClick={() => start(ads.filter((a) => selected.has(a.adId)), pause, testMode)}
+            onClick={() =>
+              start(
+                ads.filter((a) => selected.has(a.adId)),
+                pause,
+                testMode,
+              )
+            }
           >
             <RefreshCw />
             Obnovi izbrane ({selected.size})

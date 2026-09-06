@@ -3,10 +3,7 @@ import type { Page } from 'puppeteer-core';
 import { fieldValue, type CarField } from '../utils/car-fields';
 import { wait } from '../utils/wait';
 
-export const setRegistrationMonthYear = async (
-  page: Page,
-  carData: CarField[],
-): Promise<void> => {
+export const setRegistrationMonthYear = async (page: Page, carData: CarField[]): Promise<void> => {
   console.log('[setRegistration] Selecting month');
   await page.select('select[name="mesec"]', '06');
   await wait(5);

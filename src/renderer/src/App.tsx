@@ -17,9 +17,7 @@ export default function App(): JSX.Element {
       <div className="flex h-full items-center justify-center p-6">
         <div className="max-w-xl space-y-3 text-center">
           <h1 className="text-xl font-semibold">{MAINTENANCE_TITLE}</h1>
-          <p className="text-muted-foreground whitespace-pre-line text-sm">
-            {MAINTENANCE_MESSAGE}
-          </p>
+          <p className="text-muted-foreground whitespace-pre-line text-sm">{MAINTENANCE_MESSAGE}</p>
         </div>
       </div>
     );

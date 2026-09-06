@@ -14,7 +14,8 @@ export const selectBrand = async (
   );
 
   // Delivery vehicles carry the brand in a different field.
-  const znamkaData = field(carData, 'znamka') ?? (adType === 'dostavna' ? field(carData, 'znamkaTEMP') : undefined);
+  const znamkaData =
+    field(carData, 'znamka') ?? (adType === 'dostavna' ? field(carData, 'znamkaTEMP') : undefined);
   if (!znamkaData) {
     throw new Error(`Polja "znamka" ni bilo mogoče najti za vrsto oglasa: ${adType}`);
   }

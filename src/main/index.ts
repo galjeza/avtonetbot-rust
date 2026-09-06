@@ -10,7 +10,7 @@ import type {
   RenewProgress,
   UserData,
 } from '@shared/types';
-import { checkBrowserSession, reseedBotProfile } from '../scraper/browser';
+import { checkBrowserSession, closeBrowser, reseedBotProfile } from '../scraper/browser';
 import { fetchAllActiveAds } from '../scraper/get-active-ads';
 import { renewAd } from '../scraper/renew-ad';
 import { getUserData, setUserData, store } from './store';
@@ -64,36 +64,73 @@ async function handleRenewAds(
     mainWindow?.webContents.send('renew-progress', progress);
   };
 
-  for (const [index, ad] of ads.entries()) {
-    try {
-      report({ index, total, adId: ad.adId, step: 'začetek', status: 'running' });
+  try {
+    for (const [index, ad] of ads.entries()) {
+      try {
+        report({
+          index,
+          total,
+          adId: ad.adId,
+          step: 'začetek',
+          status: 'running',
+        });
 
-      await renewAd({
-        ad,
-        email: userData.email,
-        password: userData.password,
-        hdImages: userData.hdImages ?? false,
-        testMode,
-        onStep: (step, adType) =>
-          report({ index, total, adId: ad.adId, step, status: 'running', adType }),
-      });
+        await renewAd({
+          ad,
+          email: userData.email,
+          password: userData.password,
+          hdImages: userData.hdImages ?? false,
+          testMode,
+          onStep: (step, adType) =>
+            report({
+              index,
+              total,
+              adId: ad.adId,
+              step,
+              status: 'running',
+              adType,
+            }),
+        });
 
-      report({ index, total, adId: ad.adId, step: 'končano', status: 'done' });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      report({ index, total, adId: ad.adId, step: 'napaka', status: 'failed', message });
-      throw error;
+        report({
+          index,
+          total,
+          adId: ad.adId,
+          step: 'končano',
+          status: 'done',
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        report({
+          index,
+          total,
+          adId: ad.adId,
+          step: 'napaka',
+          status: 'failed',
+          message,
+        });
+        throw error;
+      }
+
+      // Spacing renewals out is what keeps the batch from looking automated.
+      const isLast = index === total - 1;
+      if (!isLast && pause > 0) {
+        report({
+          index,
+          total,
+          adId: ad.adId,
+          step: `pavza ${pause} min`,
+          status: 'waiting',
+        });
+        await new Promise((resolve) => setTimeout(resolve, pause * 60 * 1000));
+      }
     }
 
-    // Spacing renewals out is what keeps the batch from looking automated.
-    const isLast = index === total - 1;
-    if (!isLast && pause > 0) {
-      report({ index, total, adId: ad.adId, step: `pavza ${pause} min`, status: 'waiting' });
-      await new Promise((resolve) => setTimeout(resolve, pause * 60 * 1000));
-    }
+    return 'renewed';
+  } finally {
+    // Nothing reuses the browser once the batch ends, successfully or not.
+    await closeBrowser().catch(() => undefined);
   }
-
-  return 'renewed';
 }
 
 app.whenReady().then(() => {

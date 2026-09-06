@@ -21,21 +21,23 @@ export { botProfileDir, ensureBotProfile } from './profile';
 export interface BrowserSession {
   browser: Browser;
   page: Page;
+  /** Disconnects but leaves Chrome running, so the next call can reuse it. */
   release: () => Promise<void>;
   profileSeeded: boolean;
+  /** True when this call started Chrome, rather than attaching to a running one. */
+  launched: boolean;
 }
 
 export async function setupBrowser(): Promise<BrowserSession> {
   const chromePath = resolveChromePath();
   if (!chromePath) {
-    throw new Error(
-      'Google Chrome ni najden. Namestite Chrome ali nastavite pot v konfiguraciji.',
-    );
+    throw new Error('Google Chrome ni najden. Namestite Chrome ali nastavite pot v konfiguraciji.');
   }
 
   const profileSeeded = ensureBotProfile();
 
-  if (!(await isPortOpen())) {
+  const launched = !(await isPortOpen());
+  if (launched) {
     const proc = spawn(
       chromePath,
       [
@@ -79,7 +81,7 @@ export async function setupBrowser(): Promise<BrowserSession> {
     }
   };
 
-  return { browser, page, release, profileSeeded };
+  return { browser, page, release, profileSeeded, launched };
 }
 
 /**
@@ -92,34 +94,49 @@ export async function isLoggedIn(page: Page): Promise<{ loggedIn: boolean; final
   return { loggedIn: finalUrl.startsWith(LOGIN_SUCCESS_URL), finalUrl };
 }
 
+/** Shuts down the Chrome running on our profile, if there is one. */
+export async function closeBrowser(): Promise<void> {
+  if (!(await isPortOpen())) return;
+
+  try {
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: await fetchBrowserWSEndpoint(),
+    });
+    await browser.close();
+  } catch {
+    /* already gone */
+  }
+
+  await waitForPortClosed(10_000);
+}
+
 /**
  * Closes the Chrome we launched, then replaces our profile with a fresh copy
  * of the user's. Chrome must be shut down first — deleting a profile
  * directory out from under a running browser corrupts it.
  */
 export async function reseedBotProfile(): Promise<void> {
-  if (await isPortOpen()) {
-    try {
-      const browser = await puppeteer.connect({
-        browserWSEndpoint: await fetchBrowserWSEndpoint(),
-      });
-      await browser.close();
-    } catch {
-      /* already gone */
-    }
-    await waitForPortClosed(10_000);
-  }
-
+  await closeBrowser();
   ensureBotProfile(true);
 }
 
-/** Reports whether the copied profile still holds a valid avto.net session. */
+/**
+ * Reports whether the copied profile still holds a valid avto.net session.
+ *
+ * Leaves the machine as it found it: a check that had to start Chrome shuts it
+ * down again, while one that attached to a browser already running — a renewal
+ * batch, say — leaves that alone.
+ */
 export async function checkBrowserSession(): Promise<BrowserStatus> {
-  const { page, release, profileSeeded } = await setupBrowser();
+  const { browser, page, release, profileSeeded, launched } = await setupBrowser();
   try {
     const { loggedIn, finalUrl } = await isLoggedIn(page);
     return { loggedIn, finalUrl, profileSeeded };
   } finally {
-    await release().catch(() => undefined);
+    if (launched) {
+      await browser.close().catch(() => undefined);
+    } else {
+      await release().catch(() => undefined);
+    }
   }
 }

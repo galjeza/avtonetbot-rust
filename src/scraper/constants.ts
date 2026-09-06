@@ -1,17 +1,13 @@
 import type { AdType } from '@shared/types';
 
-export const AVTONET_EDIT_PREFIX =
-  'https://www.avto.net/_2016mojavtonet/ad_edit.asp?id=';
+export const AVTONET_EDIT_PREFIX = 'https://www.avto.net/_2016mojavtonet/ad_edit.asp?id=';
 
-export const AVTONET_IMAGES_PREFIX =
-  'https://www.avto.net/_2016mojavtonet/ad_photos_edit.asp?id=';
+export const AVTONET_IMAGES_PREFIX = 'https://www.avto.net/_2016mojavtonet/ad_photos_edit.asp?id=';
 
-export const AVTONET_DELETE_PREFIX =
-  'https://www.avto.net/_2016mojavtonet/ad_delete.asp?id=';
+export const AVTONET_DELETE_PREFIX = 'https://www.avto.net/_2016mojavtonet/ad_delete.asp?id=';
 
 export const LOGIN_URL = 'https://www.avto.net/_2016mojavtonet/';
-export const LOGIN_SUCCESS_URL =
-  'https://www.avto.net/_2016mojavtonet/welcome.asp';
+export const LOGIN_SUCCESS_URL = 'https://www.avto.net/_2016mojavtonet/welcome.asp';
 
 /** Results pages filtered to one broker; the broker id is appended. */
 export const AVTONET_URLS: Record<AdType, string> = {
