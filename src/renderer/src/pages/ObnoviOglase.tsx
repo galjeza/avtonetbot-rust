@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleAlert, Loader2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Loader2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { AD_TYPE_LABELS, type ActiveAd } from '@shared/types';
@@ -28,12 +28,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useAccount } from '@/lib/account';
 import { AD_TYPE_BADGE } from '@/lib/ad-type';
+import { useReadiness } from '@/lib/readiness';
 import { useRenew } from '@/lib/renew';
 
 export default function ObnoviOglase(): JSX.Element {
-  const { subscription } = useAccount();
+  const { checks, ready, pending } = useReadiness();
   const { running, progress, error, start, dismissError } = useRenew();
 
   const [ads, setAds] = useState<ActiveAd[]>([]);
@@ -57,9 +57,11 @@ export default function ObnoviOglase(): JSX.Element {
   };
 
   useEffect(() => {
-    if (subscription.isActive) load();
-    else setLoading(false);
-  }, [subscription.isActive]);
+    // Renewal deletes the original ad, so nothing here runs — not even the
+    // listing — until every precondition holds.
+    if (ready) load();
+    else if (!pending) setLoading(false);
+  }, [ready, pending]);
 
   const allSelected = ads.length > 0 && selected.size === ads.length;
 
@@ -75,17 +77,43 @@ export default function ObnoviOglase(): JSX.Element {
     [selected.size, pause],
   );
 
-  if (!subscription.isActive) {
+  if (pending) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-24" />
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
+
+  if (!ready) {
     return (
       <Card className="max-w-lg">
         <CardHeader>
-          <CardTitle>Potrebujete aktivno naročnino</CardTitle>
+          <CardTitle>Obnavljanje še ni mogoče</CardTitle>
           <CardDescription>
-            Ko naročnino podaljšate, se vaši oglasi naložijo samodejno.
+            Preden lahko obnovimo oglas, mora biti urejeno naslednje.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <ul className="flex flex-col gap-3">
+            {checks.map((c) => (
+              <li key={c.id} className="flex items-start gap-2 text-sm">
+                {c.ok ? (
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600 dark:text-green-500" />
+                ) : (
+                  <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" />
+                )}
+                <span>
+                  {c.label}
+                  {!c.ok && <span className="text-muted-foreground block">{c.hint}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
         <CardFooter>
-          <Button variant="outline" asChild>
+          <Button asChild>
             <Link to="/">Nazaj na pregled</Link>
           </Button>
         </CardFooter>

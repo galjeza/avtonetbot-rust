@@ -3,6 +3,7 @@ import { MemoryRouter as Router, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/app-layout';
 import { Toaster } from '@/components/ui/sonner';
 import { AccountProvider } from '@/lib/account';
+import { BrowserProvider } from '@/lib/browser';
 import { RenewProvider } from '@/lib/renew';
 
 import { MAINTENANCE_MESSAGE, MAINTENANCE_MODE, MAINTENANCE_TITLE } from './config';
@@ -25,19 +26,21 @@ export default function App(): JSX.Element {
 
   return (
     <AccountProvider>
-      <RenewProvider>
-        <Router>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Pregled />} />
-              <Route path="/obnovi" element={<ObnoviOglase />} />
-              <Route path="/slike" element={<SlikeOglasov />} />
-              <Route path="/konfiguracija" element={<Konfiguracija />} />
-            </Route>
-          </Routes>
-        </Router>
-        <Toaster />
-      </RenewProvider>
+      <BrowserProvider>
+        <RenewProvider>
+          <Router>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Pregled />} />
+                <Route path="/obnovi" element={<ObnoviOglase />} />
+                <Route path="/slike" element={<SlikeOglasov />} />
+                <Route path="/konfiguracija" element={<Konfiguracija />} />
+              </Route>
+            </Routes>
+          </Router>
+          <Toaster />
+        </RenewProvider>
+      </BrowserProvider>
     </AccountProvider>
   );
 }

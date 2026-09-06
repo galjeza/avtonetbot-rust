@@ -1,9 +1,7 @@
-import { useState } from 'react';
-import { CheckCircle2, CircleAlert, Globe, Mail, RefreshCw, User } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Globe, Loader2, Mail, RefreshCw, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import type { BrowserStatus } from '@shared/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,31 +16,27 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, useAccount } from '@/lib/account';
+import { useBrowser } from '@/lib/browser';
+import { useReadiness } from '@/lib/readiness';
+
+/** Green tick shown beside a value that has passed its check. */
+function Verified({ label = 'Preverjeno' }: { label?: string }): JSX.Element {
+  return (
+    <span className="flex items-center gap-1 text-sm font-normal text-green-600 dark:text-green-500">
+      <CheckCircle2 className="size-4" />
+      {label}
+    </span>
+  );
+}
 
 export default function Pregled(): JSX.Element {
   const { user, subscription, loading } = useAccount();
-  const [browser, setBrowser] = useState<BrowserStatus | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { status, checking, error, check } = useBrowser();
+  const { checks, ready } = useReadiness();
 
-  const checkBrowser = async (reseed: boolean): Promise<void> => {
-    setBusy(true);
-    try {
-      const status = reseed
-        ? await window.api.reseedBrowserProfile()
-        : await window.api.checkBrowserSession();
-      setBrowser(status);
-      if (status.loggedIn) {
-        toast.success('Brskalnik je prijavljen v avto.net.');
-      } else {
-        toast.warning('Brskalnik ni prijavljen v avto.net.');
-      }
-    } catch (e) {
-      toast.error('Brskalnika ni bilo mogoče preveriti.', {
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setBusy(false);
-    }
+  const runCheck = async (reseed: boolean): Promise<void> => {
+    await check(reseed);
+    toast.dismiss();
   };
 
   if (loading) {
@@ -73,21 +67,25 @@ export default function Pregled(): JSX.Element {
     );
   }
 
-  const blocked = !subscription.isActive;
+  const failing = checks.filter((c) => !c.ok);
 
   return (
     <div className="flex flex-col gap-6">
-      {blocked && (
+      {!ready && !checking && (
         <Alert variant="destructive">
           <CircleAlert />
-          <AlertTitle>Obnavljanje ni na voljo</AlertTitle>
+          <AlertTitle>Obnavljanje še ni mogoče</AlertTitle>
           <AlertDescription>
-            Vaša naročnina je potekla. Ko jo podaljšate, se stanje osveži samodejno.
+            <ul className="list-disc pl-4">
+              {failing.map((c) => (
+                <li key={c.id}>{c.hint}</li>
+              ))}
+            </ul>
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardDescription>Račun</CardDescription>
@@ -96,9 +94,12 @@ export default function Pregled(): JSX.Element {
               <Mail className="text-muted-foreground size-4" />
             </CardAction>
           </CardHeader>
-          <CardContent className="text-muted-foreground flex items-center gap-2 text-sm">
-            <User className="size-4" />
-            {user.brokerId ? `Posrednik št. ${user.brokerId}` : 'Številka posrednika ni znana'}
+          <CardContent className="flex flex-col gap-2">
+            <Verified label="E-pošta je nastavljena" />
+            <span className="text-muted-foreground flex items-center gap-2 text-sm">
+              <User className="size-4" />
+              {user.brokerId ? `Posrednik št. ${user.brokerId}` : 'Številka posrednika ni znana'}
+            </span>
           </CardContent>
         </Card>
 
@@ -114,42 +115,47 @@ export default function Pregled(): JSX.Element {
               </Badge>
             </CardAction>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-sm">
-            {subscription.isActive
-              ? 'Obnavljanje oglasov je omogočeno.'
-              : 'Za obnavljanje potrebujete aktivno naročnino.'}
+          <CardContent>
+            {subscription.isActive ? (
+              <Verified label="Velja še naprej" />
+            ) : (
+              <span className="text-muted-foreground text-sm">
+                Za obnavljanje potrebujete aktivno naročnino.
+              </span>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardDescription>Brskalnik</CardDescription>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              {browser === null ? (
-                'Ni preverjeno'
-              ) : browser.loggedIn ? (
-                <>
-                  <CheckCircle2 className="size-4" /> Prijavljen
-                </>
-              ) : (
-                <>
-                  <CircleAlert className="size-4" /> Ni prijavljen
-                </>
-              )}
+            <CardTitle className="text-lg">
+              {checking ? 'Preverjam…' : status?.loggedIn ? 'Prijavljen' : 'Ni prijavljen'}
             </CardTitle>
             <CardAction>
               <Globe className="text-muted-foreground size-4" />
             </CardAction>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-sm">
-            Program uporablja kopijo vašega Chrome profila, da ostane prijavljen v avto.net.
+          <CardContent className="flex flex-col gap-2">
+            {checking ? (
+              <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                Odpiramo Chrome, da preverimo sejo.
+              </span>
+            ) : status?.loggedIn ? (
+              <Verified />
+            ) : (
+              <span className="text-muted-foreground text-sm">
+                {error ?? 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.'}
+              </span>
+            )}
           </CardContent>
           <CardFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => checkBrowser(false)} disabled={busy}>
-              {busy ? <RefreshCw className="animate-spin" /> : <RefreshCw />}
+            <Button variant="outline" size="sm" onClick={() => runCheck(false)} disabled={checking}>
+              <RefreshCw className={checking ? 'animate-spin' : undefined} />
               Preveri
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => checkBrowser(true)} disabled={busy}>
+            <Button variant="ghost" size="sm" onClick={() => runCheck(true)} disabled={checking}>
               Osveži profil
             </Button>
           </CardFooter>

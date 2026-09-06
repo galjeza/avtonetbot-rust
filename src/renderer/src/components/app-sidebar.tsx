@@ -1,4 +1,4 @@
-import { Car, Images, LayoutDashboard, RefreshCw, Settings } from 'lucide-react';
+import { Car, CircleAlert, Images, LayoutDashboard, RefreshCw, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { formatDate, useAccount } from '@/lib/account';
+import { useReadiness } from '@/lib/readiness';
 
 const NAV = [
   { to: '/', label: 'Pregled', icon: LayoutDashboard, end: true },
@@ -24,6 +25,7 @@ const NAV = [
 
 export function AppSidebar(): JSX.Element {
   const { subscription, loading } = useAccount();
+  const { ready, pending } = useReadiness();
 
   return (
     <Sidebar collapsible="icon">
@@ -51,18 +53,25 @@ export function AppSidebar(): JSX.Element {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV.map(({ to, label, icon: Icon, end }) => (
-                <SidebarMenuItem key={to}>
-                  <NavLink to={to} end={end}>
-                    {({ isActive }) => (
-                      <SidebarMenuButton isActive={isActive} tooltip={label}>
-                        <Icon />
-                        <span>{label}</span>
-                      </SidebarMenuButton>
-                    )}
-                  </NavLink>
-                </SidebarMenuItem>
-              ))}
+              {NAV.map(({ to, label, icon: Icon, end }) => {
+                const blocked = to === '/obnovi' && !ready && !pending;
+                return (
+                  <SidebarMenuItem key={to}>
+                    <NavLink to={to} end={end}>
+                      {({ isActive }) => (
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          tooltip={blocked ? `${label} — ni na voljo` : label}
+                        >
+                          <Icon />
+                          <span>{label}</span>
+                          {blocked && <CircleAlert className="text-destructive ml-auto size-4" />}
+                        </SidebarMenuButton>
+                      )}
+                    </NavLink>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
