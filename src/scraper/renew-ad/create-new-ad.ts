@@ -3,7 +3,7 @@ import type { Page } from 'puppeteer-core';
 import type { AdType } from '@shared/types';
 import { newAdUrl, SLOW_TIMEOUT_MS } from '../constants';
 import type { CarField } from '../utils/ad-images';
-import { wait } from '../utils/wait';
+import { humanClick, jitteredWait } from '../utils/human';
 import {
   fillCheckboxesFromData,
   fillInputsFromData,
@@ -41,13 +41,13 @@ export const createNewAd = async (
     await setRegistrationMonthYear(page, carData);
     await setFuelType(page, carData);
 
-    await page.click('button[name="potrdi"]');
+    await humanClick(page, 'button[name="potrdi"]');
     console.log('[createNewAd] Confirmed step 1');
-    await wait(5);
+    await jitteredWait(5);
 
     if (adType === 'car') {
       await page.waitForSelector('.supurl', { timeout: 0 });
-      await page.click('.supurl');
+      await humanClick(page, '.supurl');
     }
   }
 
@@ -75,7 +75,7 @@ export const createNewAd = async (
     const shouldBeChecked = vinObjaviField.value === '1';
     const isChecked = await page.$eval('#VINobjavi', (el) => (el as HTMLInputElement).checked);
     if (shouldBeChecked !== isChecked) {
-      await page.click('#VINobjavi');
+      await humanClick(page, '#VINobjavi');
     }
   }
 
@@ -83,7 +83,7 @@ export const createNewAd = async (
 
   await Promise.all([
     page.waitForNavigation({ timeout: SLOW_TIMEOUT_MS }).catch(() => undefined),
-    page.click('button[name="EDITAD"]'),
+    humanClick(page, 'button[name="EDITAD"]'),
   ]);
 
   await page

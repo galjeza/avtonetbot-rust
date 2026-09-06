@@ -1,5 +1,6 @@
 import type { Page } from 'puppeteer-core';
 
+import { humanClick, humanPause } from '../utils/human';
 import { wait } from '../utils/wait';
 
 /**
@@ -40,13 +41,15 @@ export const solveCaptcha = async (page: Page): Promise<void> => {
   const sum = parseInt(captchaNumbers[0], 10) + parseInt(captchaNumbers[1], 10);
   console.log('[solveCaptcha] Captcha parsed', { captchaNumbers, sum });
 
+  await humanClick(page, 'input[name="ReadTotal"]');
   await page.click('input[name="ReadTotal"]', { clickCount: 3 });
   await wait(2);
   await page.keyboard.press('Backspace');
   await wait(2);
 
   for (const digit of sum.toString()) {
-    await page.type('input[name="ReadTotal"]', digit, { delay: 150 });
+    await page.keyboard.type(digit, { delay: 0 });
+    await humanPause(220, 120);
     await wait(2);
   }
 

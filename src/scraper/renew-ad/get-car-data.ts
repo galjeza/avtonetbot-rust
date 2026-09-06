@@ -8,6 +8,7 @@ import type { AdType } from '@shared/types';
 import { AVTONET_EDIT_PREFIX, AVTONET_IMAGES_PREFIX, SLOW_TIMEOUT_MS } from '../constants';
 import { getAdImagesDirectory, type CarField } from '../utils/ad-images';
 import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/images';
+import { humanClick, humanReplace, jitteredWait } from '../utils/human';
 import { wait } from '../utils/wait';
 import { solveCaptcha } from './solve-captcha';
 
@@ -108,9 +109,7 @@ export const getCarData = async (
       const originalPrice = parseInt(priceField.value, 10) || 1000;
       const newPrice = Math.max(100, originalPrice + randomPriceOffset());
       console.log('[getCarData] Adjusting price', { originalPrice, newPrice });
-      await page.click('input[name="cena"]', { clickCount: 3 });
-      await page.keyboard.press('Backspace');
-      await page.type('input[name="cena"]', String(newPrice));
+      await humanReplace(page, 'input[name="cena"]', String(newPrice));
     }
 
     const letoRegField = carData.find((d) => d.name === 'letoReg');
@@ -120,16 +119,14 @@ export const getCarData = async (
         originalYear: letoRegField.value,
         newYear,
       });
-      await page.click('input[name="letoReg"]', { clickCount: 3 });
-      await page.keyboard.press('Backspace');
-      await page.type('input[name="letoReg"]', newYear);
+      await humanReplace(page, 'input[name="letoReg"]', newYear);
     }
 
     console.log('[getCarData] Submitting edit form');
-    await wait(3);
+    await jitteredWait(3);
     await solveCaptcha(page);
-    await page.click('button[name=ADVIEW]');
-    await wait(3);
+    await humanClick(page, 'button[name=ADVIEW]');
+    await jitteredWait(3);
   }
 
   console.log('[getCarData] Navigating to images page');

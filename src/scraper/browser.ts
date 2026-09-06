@@ -38,6 +38,28 @@ const SKIP_ENTRIES = new Set([
   'extensions_crx_cache',
   'optimization_guide_model_store',
   'segmentation_platform',
+  // Static assets and telemetry Chrome refetches or regenerates on its own.
+  // Roughly 130 MB, and none of it contributes to how the browser fingerprints.
+  'WasmTtsEngine',
+  'BrowserMetrics',
+  'OnDeviceHeadSuggestModel',
+  'ActorSafetyLists',
+  'hyphen-data',
+  'ZxcvbnData',
+  'Shared Dictionary',
+  'SafetyTips',
+  'Subresource Filter',
+  'FileTypePolicies',
+  'OriginTrials',
+  'TpcdMetadata',
+  'PKIMetadata',
+  // Lock files; copying them makes Chrome think another instance owns this
+  // profile. "CURRENT" is deliberately NOT skipped — it points LevelDB at its
+  // manifest, and dropping it corrupts Local Storage and Extension State.
+  'lockfile',
+  'LOCK',
+  'LOG',
+  'LOG.old',
 ]);
 
 function findInPath(binaryName: string): string | null {
