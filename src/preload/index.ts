@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+import type { Api } from '@shared/api';
 import type {
   ActiveAd,
   BrowserStatus,
@@ -44,6 +45,6 @@ const api = {
   },
 };
 
-contextBridge.exposeInMainWorld('api', api);
-
-export type Api = typeof api;
+// `satisfies` makes the compiler prove this matches the shared contract,
+// so the renderer's view of window.api can never drift from what we expose.
+contextBridge.exposeInMainWorld('api', api satisfies Api);
