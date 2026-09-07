@@ -40,22 +40,32 @@ jobs:
       - run: npm ci
 
       # electron-updater compares semver, so an unchanged version is invisible
-      # to installed clients no matter what the release is called. npm version
-      # makes the bump commit and the matching v* tag in one step.
+      # to installed clients no matter what the release is called. Nothing is
+      # committed yet — a build that fails below must leave master untouched.
       - name: Bump patch version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm version patch -m "chore: release v%s [skip release]"
+        run: npm version patch --no-git-tag-version
+
+      # Typecheck and bundle. Doing this before anything is pushed means a
+      # broken commit costs a red run and nothing else: no orphan tag, no
+      # version number burnt, and the next push retries the same number.
+      - name: Build
+        run: npm run build
 
       # Pushes authenticated with GITHUB_TOKEN cannot trigger workflows, so the
       # bump commit cannot start a second release run.
-      - name: Push bump and tag
-        run: git push --follow-tags origin HEAD:master
+      - name: Commit and tag the release
+        # Windows runners default to PowerShell; this block is bash.
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: release v${VERSION} [skip release]"
+          git tag "v${VERSION}"
+          git push --follow-tags origin HEAD:master
 
-      # Runs typecheck, builds all three bundles, then uploads the installer,
-      # its blockmap and latest.yml to the release for this tag.
-      - name: Build and publish
-        run: npm run package
+      # Uploads the installer, its blockmap and latest.yml to the release.
+      - name: Publish installer
+        run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
