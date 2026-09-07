@@ -1,4 +1,13 @@
-import { CheckCircle2, CircleAlert, Globe, Loader2, Mail, RefreshCw, User } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleAlert,
+  Download,
+  Globe,
+  Loader2,
+  Mail,
+  RefreshCw,
+  User,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -18,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, useAccount } from '@/lib/account';
 import { useBrowser } from '@/lib/browser';
 import { useReadiness } from '@/lib/readiness';
+import { useUpdate } from '@/lib/updates';
 
 /** Green tick shown beside a value that has passed its check. */
 function Verified({ label = 'Preverjeno' }: { label?: string }): JSX.Element {
@@ -33,6 +43,7 @@ export default function Pregled(): JSX.Element {
   const { user, subscription, loading } = useAccount();
   const { status, checking, error, check } = useBrowser();
   const { checks, ready } = useReadiness();
+  const { updateAvailable, checking: checkingUpdate, version } = useUpdate();
 
   const runCheck = async (reseed: boolean): Promise<void> => {
     await check(reseed);
@@ -159,6 +170,39 @@ export default function Pregled(): JSX.Element {
               Osveži profil
             </Button>
           </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardDescription>Program</CardDescription>
+            <CardTitle className="text-lg">{version ? `Različica ${version}` : '—'}</CardTitle>
+            <CardAction>
+              {updateAvailable ? (
+                <Badge variant="destructive">Posodobite</Badge>
+              ) : (
+                <Download className="text-muted-foreground size-4" />
+              )}
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {checkingUpdate ? (
+              <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                Preverjamo, ali je na voljo posodobitev.
+              </span>
+            ) : updateAvailable ? (
+              // The install itself is driven by the dialog the main process
+              // shows on launch, so the only thing left to describe is how to
+              // get that dialog back after dismissing it.
+              <ol className="text-muted-foreground list-inside list-decimal text-sm">
+                <li>Zaprite program</li>
+                <li>Zaženite ga ponovno</li>
+                <li>Potrdite namestitev posodobitve</li>
+              </ol>
+            ) : (
+              <Verified label="Program je posodobljen" />
+            )}
+          </CardContent>
         </Card>
       </div>
     </div>

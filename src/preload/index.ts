@@ -25,6 +25,8 @@ const api = {
   saveUserData: (userData: UserData): Promise<boolean> =>
     ipcRenderer.invoke('save-user-data', userData),
 
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
+
   checkUpdateStatus: (): Promise<boolean> => ipcRenderer.invoke('check-update-status'),
 
   checkBrowserSession: (): Promise<BrowserStatus> => ipcRenderer.invoke('check-browser-session'),

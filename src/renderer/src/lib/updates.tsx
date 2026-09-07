@@ -11,6 +11,8 @@ import {
 interface UpdateValue {
   updateAvailable: boolean;
   checking: boolean;
+  /** Null until the main process answers; it never changes after that. */
+  version: string | null;
 }
 
 const UpdateContext = createContext<UpdateValue | null>(null);
@@ -33,6 +35,7 @@ const POLL_MS = 60_000;
 export function UpdateProvider({ children }: { children: ReactNode }): JSX.Element {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [version, setVersion] = useState<string | null>(null);
 
   const read = useCallback(async (): Promise<void> => {
     try {
@@ -52,9 +55,18 @@ export function UpdateProvider({ children }: { children: ReactNode }): JSX.Eleme
     return () => clearInterval(id);
   }, [read]);
 
+  // Asked once: a running build cannot change its own version, and an update
+  // replaces the process rather than mutating it.
+  useEffect(() => {
+    window.api
+      .getAppVersion()
+      .then(setVersion)
+      .catch(() => setVersion(null));
+  }, []);
+
   const value = useMemo<UpdateValue>(
-    () => ({ updateAvailable, checking }),
-    [updateAvailable, checking],
+    () => ({ updateAvailable, checking, version }),
+    [updateAvailable, checking, version],
   );
 
   return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>;

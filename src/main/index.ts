@@ -153,6 +153,8 @@ app.whenReady().then(() => {
 
   ipcMain.handle('renew-ads', handleRenewAds);
 
+  ipcMain.handle('get-app-version', (): string => app.getVersion());
+
   ipcMain.handle('check-update-status', (): boolean => isUpdateAvailable());
 
   ipcMain.handle('check-browser-session', (): Promise<BrowserStatus> => checkBrowserSession());

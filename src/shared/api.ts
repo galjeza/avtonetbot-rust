@@ -21,6 +21,8 @@ export interface Api {
   renewAds(ads: ActiveAd[], pause: number, testMode: boolean): Promise<string>;
   saveUserData(userData: UserData): Promise<boolean>;
 
+  /** The running build's version, straight from app.getVersion(). */
+  getAppVersion(): Promise<string>;
   checkUpdateStatus(): Promise<boolean>;
   checkBrowserSession(): Promise<BrowserStatus>;
   reseedBrowserProfile(): Promise<BrowserStatus>;
