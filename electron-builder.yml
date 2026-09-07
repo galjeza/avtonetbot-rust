@@ -33,3 +33,7 @@ publish:
   provider: github
   owner: galjeza
   repo: avtonetbot-rust
+  # electron-builder defaults to a draft release, and drafts are invisible to
+  # the updater — the feed would only ever go live after a manual click in the
+  # GitHub UI. Publishing straight away is what makes the workflow autonomous.
+  releaseType: release
