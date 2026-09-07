@@ -1,0 +1,35 @@
+# Kept deliberately close to the legacy anbot build config: appId, productName
+# and the NSIS defaults decide whether an installer upgrades the existing
+# install or lands beside it, and every client already out there was built with
+# these values.
+appId: avtonetbot
+productName: Avtonetbot
+directories:
+  buildResources: build
+  output: release
+asar: true
+asarUnpack:
+  - '**/*.{node,dll}'
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!build/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!electron-builder.yml'
+  - '!{.prettierrc.json,.prettierignore,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.*.tsbuildinfo}'
+  - '!components.json'
+win:
+  target: nsis
+  icon: build/icon.ico
+# No `nsis:` block on purpose. The legacy build had none either, so it shipped
+# electron-builder's defaults (one-click, per-user). Setting them now would
+# change the installer's behaviour for everyone upgrading.
+
+# Baked into every build as app-update.yml, so an installed copy polls this
+# address for the rest of its life. Changing it later only reaches users who
+# reinstall by hand.
+publish:
+  provider: github
+  owner: galjeza
+  repo: avtonetbot-rust

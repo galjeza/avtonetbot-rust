@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AccountProvider } from '@/lib/account';
 import { BrowserProvider } from '@/lib/browser';
 import { RenewProvider } from '@/lib/renew';
+import { UpdateProvider } from '@/lib/updates';
 
 import { MAINTENANCE_MESSAGE, MAINTENANCE_MODE, MAINTENANCE_TITLE } from './config';
 import Konfiguracija from './pages/Konfiguracija';
@@ -26,21 +27,23 @@ export default function App(): JSX.Element {
 
   return (
     <AccountProvider>
-      <BrowserProvider>
-        <RenewProvider>
-          <Router>
-            <Routes>
-              <Route element={<AppLayout />}>
-                <Route path="/" element={<Pregled />} />
-                <Route path="/obnovi" element={<ObnoviOglase />} />
-                <Route path="/slike" element={<SlikeOglasov />} />
-                <Route path="/konfiguracija" element={<Konfiguracija />} />
-              </Route>
-            </Routes>
-          </Router>
-          <Toaster />
-        </RenewProvider>
-      </BrowserProvider>
+      <UpdateProvider>
+        <BrowserProvider>
+          <RenewProvider>
+            <Router>
+              <Routes>
+                <Route element={<AppLayout />}>
+                  <Route path="/" element={<Pregled />} />
+                  <Route path="/obnovi" element={<ObnoviOglase />} />
+                  <Route path="/slike" element={<SlikeOglasov />} />
+                  <Route path="/konfiguracija" element={<Konfiguracija />} />
+                </Route>
+              </Routes>
+            </Router>
+            <Toaster />
+          </RenewProvider>
+        </BrowserProvider>
+      </UpdateProvider>
     </AccountProvider>
   );
 }

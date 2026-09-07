@@ -1,8 +1,9 @@
 import { useAccount } from './account';
 import { useBrowser } from './browser';
+import { useUpdate } from './updates';
 
 export interface ReadinessCheck {
-  id: 'email' | 'subscription' | 'browser';
+  id: 'email' | 'subscription' | 'browser' | 'update';
   label: string;
   ok: boolean;
   /** What to do about it, shown when the check fails. */
@@ -11,9 +12,9 @@ export interface ReadinessCheck {
 }
 
 /**
- * The three things that must hold before an ad can be renewed. Renewal is
+ * The four things that must hold before an ad can be renewed. Renewal is
  * destructive — it deletes the original ad before recreating it — so the app
- * refuses to start one until all three pass.
+ * refuses to start one until all four pass.
  */
 export function useReadiness(): {
   checks: ReadinessCheck[];
@@ -22,6 +23,7 @@ export function useReadiness(): {
 } {
   const { user, subscription, loading } = useAccount();
   const { status, checking } = useBrowser();
+  const { updateAvailable, checking: checkingUpdate } = useUpdate();
 
   const checks: ReadinessCheck[] = [
     {
@@ -45,11 +47,20 @@ export function useReadiness(): {
       hint: 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.',
       to: '/',
     },
+    {
+      id: 'update',
+      label: 'Program je posodobljen',
+      ok: !updateAvailable,
+      hint:
+        'Na voljo je nova verzija programa. Zaprite program, ga zaženite znova ' +
+        'in potrdite namestitev posodobitve.',
+      to: '/',
+    },
   ];
 
   return {
     checks,
     ready: checks.every((c) => c.ok),
-    pending: loading || checking,
+    pending: loading || checking || checkingUpdate,
   };
 }

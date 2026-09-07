@@ -1,0 +1,61 @@
+name: Release
+
+# Every push to master ships a release. Documentation-only pushes do not, and
+# any commit whose message contains [skip release] is left alone.
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+# electron-builder uploads the installer and latest.yml to a GitHub release.
+permissions:
+  contents: write
+
+# Two releases building at once would both bump the version and race to push.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    # The NSIS installer needs a real Windows toolchain.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # npm version needs the history to make a commit on top of master,
+          # and the tag it creates has to be pushable.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # electron-updater compares semver, so an unchanged version is invisible
+      # to installed clients no matter what the release is called. npm version
+      # makes the bump commit and the matching v* tag in one step.
+      - name: Bump patch version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version patch -m "chore: release v%s [skip release]"
+
+      # Pushes authenticated with GITHUB_TOKEN cannot trigger workflows, so the
+      # bump commit cannot start a second release run.
+      - name: Push bump and tag
+        run: git push --follow-tags origin HEAD:master
+
+      # Runs typecheck, builds all three bundles, then uploads the installer,
+      # its blockmap and latest.yml to the release for this tag.
+      - name: Build and publish
+        run: npm run package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -92,6 +92,12 @@ export async function humanClick(page: Page, selector: string): Promise<void> {
   const element = await page.$(selector);
   if (!element) throw new Error(`Elementa "${selector}" ni bilo mogoče najti.`);
 
+  // page.mouse works in viewport coordinates, so anything below the fold has to
+  // be scrolled to first. puppeteer's own element.click() does this internally;
+  // driving the mouse by hand means doing it here, and skipping it clicks empty
+  // space without any error.
+  await element.scrollIntoView().catch(() => undefined);
+
   const box = await element.boundingBox();
   if (!box) {
     await element.click();
@@ -101,6 +107,24 @@ export async function humanClick(page: Page, selector: string): Promise<void> {
   // Aim for the middle band of the element, not its exact centre.
   const targetX = box.x + box.width * (0.35 + Math.random() * 0.3);
   const targetY = box.y + box.height * (0.35 + Math.random() * 0.3);
+
+  // Scrolling does not always help: a fixed overlay, or an element taller than
+  // the window, can leave the point off-screen. Hand those to puppeteer.
+  const { width, height } = await page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  if (targetX < 0 || targetY < 0 || targetX > width || targetY > height) {
+    console.warn('[humanClick] Target outside viewport, using fallback click', {
+      selector,
+      targetX,
+      targetY,
+      width,
+      height,
+    });
+    await element.click();
+    return;
+  }
 
   await humanMouseMove(page, targetX, targetY);
   await humanPause(140, 60);
