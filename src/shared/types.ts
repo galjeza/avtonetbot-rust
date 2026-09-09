@@ -33,6 +33,12 @@ export interface UserData {
    * ourselves, which is right for everyone who only has one profile.
    */
   chromeProfileDir?: string;
+  /**
+   * Leaves the bot's Chrome on screen for a minute after a session check
+   * instead of closing it, so someone helping the user can see the page the
+   * check actually landed on.
+   */
+  keepBrowserOpen?: boolean;
   brokerId?: string;
   subscriptionPaidTo?: string;
   hdImages?: boolean;
@@ -40,6 +46,12 @@ export interface UserData {
 
 /** What the licence server returns for GET /user?email=… */
 export interface UserMeta {
+  /**
+   * Leaves the bot's Chrome on screen for a minute after a session check
+   * instead of closing it, so someone helping the user can see the page the
+   * check actually landed on.
+   */
+  keepBrowserOpen?: boolean;
   brokerId?: string;
   subscriptionPaidTo?: string;
   hdImages?: boolean;

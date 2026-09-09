@@ -19,6 +19,14 @@ import { botProfileDir, chosenProfileDir, ensureBotProfile, seededProfileDir } f
 const PORT_WAIT_TIMEOUT_MS = 30 * 1000;
 
 /**
+ * How long a check leaves the browser up when the user has asked it to.
+ *
+ * Long enough to look at the page and click around it, short enough that a
+ * forgotten window tidies itself away.
+ */
+const KEEP_OPEN_MS = 60 * 1000;
+
+/**
  * Guards the launch step. Two concurrent callers would each see a closed debug
  * port and each start a browser, so the second shares the first's promise
  * rather than spawning its own.
@@ -225,6 +233,14 @@ export async function checkBrowserSession(): Promise<BrowserStatus> {
       profileDir: seededProfileDir(),
     };
   } finally {
-    await endSession(session);
+    if (getUserData()?.keepBrowserOpen) {
+      // Deliberately not awaited: the answer is already known, and holding the
+      // reply back for a minute would leave the app looking stuck. The window
+      // stays on the page the check landed on, which is the whole point — a
+      // report of "not signed in" is worth very little next to seeing it.
+      setTimeout(() => void endSession(session).catch(() => undefined), KEEP_OPEN_MS);
+    } else {
+      await endSession(session);
+    }
   }
 }

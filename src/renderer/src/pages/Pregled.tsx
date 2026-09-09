@@ -172,6 +172,11 @@ export default function Pregled(): JSX.Element {
                     : 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.')}
               </span>
             )}
+            {!checking && status?.profileDir && !status.loggedIn && status.finalUrl && (
+              <span className="text-muted-foreground text-xs break-all">
+                Ustavilo se je na: {status.finalUrl}
+              </span>
+            )}
             <ChromeProfilePicker className="pt-1" />
           </CardContent>
           <CardFooter className="gap-2">

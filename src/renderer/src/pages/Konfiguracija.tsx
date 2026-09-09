@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { UserData } from '@shared/types';
 import { ChromeProfilePicker } from '@/components/chrome-profile-picker';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
@@ -20,6 +21,7 @@ import { useBrowser } from '@/lib/browser';
 export default function Konfiguracija(): JSX.Element {
   const { user, save } = useAccount();
   const { status, checking } = useBrowser();
+  const keepBrowserOpen = user?.keepBrowserOpen ?? false;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [chromePath, setChromePath] = useState('');
@@ -133,6 +135,32 @@ export default function Konfiguracija(): JSX.Element {
                   ? 'Izbrani profil je prijavljen v avto.net.'
                   : 'Izbrani profil ni prijavljen v avto.net. Prijavite se vanj v Chromu ali izberite drugega.'}
           </p>
+
+          {status?.finalUrl && !status.loggedIn && (
+            <p className="text-muted-foreground text-xs break-all">
+              Preverjanje se je ustavilo na: <code>{status.finalUrl}</code>
+            </p>
+          )}
+
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={keepBrowserOpen}
+              onCheckedChange={(checked) =>
+                save({
+                  ...(user ?? { email: '', password: '' }),
+                  keepBrowserOpen: checked === true,
+                })
+              }
+              className="mt-0.5"
+            />
+            <span>
+              Po preverjanju pusti Chrome odprt eno minuto
+              <span className="text-muted-foreground block text-xs">
+                Za iskanje napak: okno ostane na strani, ki jo je preverjanje videlo, namesto da se
+                takoj zapre.
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
     </div>
