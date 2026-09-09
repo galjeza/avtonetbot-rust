@@ -1,4 +1,11 @@
-import type { ActiveAd, BrowserStatus, OpenFolderResult, RenewProgress, UserData } from './types';
+import type {
+  ActiveAd,
+  BrowserStatus,
+  ChromeProfileInfo,
+  OpenFolderResult,
+  RenewProgress,
+  UserData,
+} from './types';
 
 /**
  * The surface the preload script exposes on `window.api`.
@@ -26,6 +33,11 @@ export interface Api {
   checkUpdateStatus(): Promise<boolean>;
   checkBrowserSession(): Promise<BrowserStatus>;
   reseedBrowserProfile(): Promise<BrowserStatus>;
+
+  /** The user's Chrome profiles, best candidate for the avto.net session first. */
+  listChromeProfiles(): Promise<ChromeProfileInfo[]>;
+  /** Copies the session from a different profile and re-checks it. */
+  selectChromeProfile(profileDir: string): Promise<BrowserStatus>;
   openAdImagesFolder(): Promise<OpenFolderResult>;
 
   /** Subscribes to batch progress; returns an unsubscribe function. */

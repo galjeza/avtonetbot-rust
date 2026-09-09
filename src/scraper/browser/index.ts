@@ -3,8 +3,10 @@ import { spawn } from 'node:child_process';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 
 import type { BrowserStatus } from '@shared/types';
+import { getUserData, setUserData } from '../../main/store';
 import { DEFAULT_TIMEOUT_MS, LOGIN_SUCCESS_URL } from '../constants';
 import { resolveChromePath } from './chrome-path';
+import { listChromeProfiles } from './chrome-profiles';
 import {
   DEBUG_PORT,
   fetchBrowserWSEndpoint,
@@ -12,7 +14,7 @@ import {
   waitForDebugPort,
   waitForPortClosed,
 } from './devtools';
-import { botProfileDir, ensureBotProfile } from './profile';
+import { botProfileDir, chosenProfileDir, ensureBotProfile, seededProfileDir } from './profile';
 
 const PORT_WAIT_TIMEOUT_MS = 30 * 1000;
 
@@ -49,6 +51,11 @@ async function launchIfNeeded(chromePath: string): Promise<boolean> {
     [
       `--remote-debugging-port=${DEBUG_PORT}`,
       `--user-data-dir=${botProfileDir()}`,
+      // The copy keeps the name the profile had in the user's Chrome, which is
+      // only "Default" when that is the one we took it from. Without this,
+      // Chrome would open an empty Default profile beside it and report the
+      // session as signed out.
+      `--profile-directory=${seededProfileDir()}`,
       '--no-first-run',
       '--no-default-browser-check',
       // Deliberately no --restore-last-session. The profile is a copy of the
@@ -69,6 +76,7 @@ async function launchIfNeeded(chromePath: string): Promise<boolean> {
 }
 
 export { botProfileDir, ensureBotProfile } from './profile';
+export { listChromeProfiles };
 
 export interface BrowserSession {
   browser: Browser;
@@ -175,6 +183,24 @@ export async function reseedBotProfile(): Promise<void> {
 }
 
 /**
+ * Records which of their Chrome profiles the user wants the session copied
+ * from, and rebuilds the copy from it.
+ *
+ * Nothing here infers the profile. Which one holds the avto.net session cannot
+ * be read off the files with any certainty — the cookie values are encrypted,
+ * so we can see that a profile has *been* on avto.net but not whether it is
+ * still signed in — and a wrong guess is invisible until a renewal fails.
+ */
+export async function selectChromeProfile(profileDir: string): Promise<void> {
+  const known = listChromeProfiles().some((profile) => profile.dir === profileDir);
+  if (!known) throw new Error(`Chromov profil "${profileDir}" ne obstaja.`);
+
+  const userData = getUserData() ?? { email: '', password: '' };
+  setUserData({ ...userData, chromeProfileDir: profileDir });
+  await reseedBotProfile();
+}
+
+/**
  * Reports whether the copied profile still holds a valid avto.net session.
  *
  * Leaves the machine as it found it: a check that had to start Chrome shuts it
@@ -182,10 +208,22 @@ export async function reseedBotProfile(): Promise<void> {
  * batch, say — leaves that alone.
  */
 export async function checkBrowserSession(): Promise<BrowserStatus> {
+  // Until the user has picked a profile there is nothing to check, and
+  // starting Chrome on an empty one would only report a signed-out session
+  // that says nothing about what is actually needed.
+  if (!chosenProfileDir()) {
+    return { loggedIn: false, finalUrl: '', profileSeeded: false, profileDir: null };
+  }
+
   const session = await setupBrowser();
   try {
     const { loggedIn, finalUrl } = await isLoggedIn(session.page);
-    return { loggedIn, finalUrl, profileSeeded: session.profileSeeded };
+    return {
+      loggedIn,
+      finalUrl,
+      profileSeeded: session.profileSeeded,
+      profileDir: seededProfileDir(),
+    };
   } finally {
     await endSession(session);
   }

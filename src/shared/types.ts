@@ -27,6 +27,12 @@ export interface UserData {
   email: string;
   password: string;
   chromePath?: string;
+  /**
+   * Which Chrome profile directory to copy the avto.net session from, e.g.
+   * "Default" or "Profile 1". Unset means we pick the best candidate
+   * ourselves, which is right for everyone who only has one profile.
+   */
+  chromeProfileDir?: string;
   brokerId?: string;
   subscriptionPaidTo?: string;
   hdImages?: boolean;
@@ -55,6 +61,26 @@ export interface BrowserStatus {
   loggedIn: boolean;
   finalUrl: string;
   profileSeeded: boolean;
+  /**
+   * The Chrome profile directory our copy was taken from, or null while the
+   * user has not picked one — which is the state every install starts in,
+   * since nothing is copied until they choose.
+   */
+  profileDir: string | null;
+}
+
+/** One of the user's Chrome profiles, as a candidate to copy the session from. */
+export interface ChromeProfileInfo {
+  /** Directory name inside Chrome's User Data, e.g. "Default" or "Profile 1". */
+  dir: string;
+  /** What Chrome calls it in its own avatar menu. */
+  name: string;
+  /** The Google account signed into it, when there is one. */
+  accountEmail?: string;
+  /** When Chrome last had this profile open, in milliseconds since the epoch. */
+  lastActive?: number;
+  /** avto.net appears in this profile's cookie database. */
+  hasAvtonetCookies: boolean;
 }
 
 export interface OpenFolderResult {

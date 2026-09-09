@@ -4,6 +4,7 @@ import type { Api } from '@shared/api';
 import type {
   ActiveAd,
   BrowserStatus,
+  ChromeProfileInfo,
   OpenFolderResult,
   RenewProgress,
   UserData,
@@ -32,6 +33,12 @@ const api = {
   checkBrowserSession: (): Promise<BrowserStatus> => ipcRenderer.invoke('check-browser-session'),
 
   reseedBrowserProfile: (): Promise<BrowserStatus> => ipcRenderer.invoke('reseed-browser-profile'),
+
+  listChromeProfiles: (): Promise<ChromeProfileInfo[]> =>
+    ipcRenderer.invoke('list-chrome-profiles'),
+
+  selectChromeProfile: (profileDir: string): Promise<BrowserStatus> =>
+    ipcRenderer.invoke('select-chrome-profile', profileDir),
 
   openAdImagesFolder: (): Promise<OpenFolderResult> => ipcRenderer.invoke('open-ad-images-folder'),
 

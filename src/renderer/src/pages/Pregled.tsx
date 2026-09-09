@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { ChromeProfilePicker } from '@/components/chrome-profile-picker';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,7 @@ function Verified({ label = 'Preverjeno' }: { label?: string }): JSX.Element {
 
 export default function Pregled(): JSX.Element {
   const { user, subscription, loading } = useAccount();
-  const { status, checking, error, check } = useBrowser();
+  const { status, checking, error, check, selecting } = useBrowser();
   const { checks, ready } = useReadiness();
   const { updateAvailable, checking: checkingUpdate, version } = useUpdate();
 
@@ -141,7 +142,13 @@ export default function Pregled(): JSX.Element {
           <CardHeader>
             <CardDescription>Brskalnik</CardDescription>
             <CardTitle className="text-lg">
-              {checking ? 'Preverjam…' : status?.loggedIn ? 'Prijavljen' : 'Ni prijavljen'}
+              {checking
+                ? 'Preverjam…'
+                : !status?.profileDir
+                  ? 'Izberite profil'
+                  : status.loggedIn
+                    ? 'Prijavljen'
+                    : 'Ni prijavljen'}
             </CardTitle>
             <CardAction>
               <Globe className="text-muted-foreground size-4" />
@@ -151,22 +158,33 @@ export default function Pregled(): JSX.Element {
             {checking ? (
               <span className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 className="size-4 animate-spin" />
-                Odpiramo Chrome, da preverimo sejo.
+                {selecting
+                  ? 'Kopiramo profil in preverjamo sejo.'
+                  : 'Odpiramo Chrome, da preverimo sejo.'}
               </span>
             ) : status?.loggedIn ? (
               <Verified />
             ) : (
               <span className="text-muted-foreground text-sm">
-                {error ?? 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.'}
+                {error ??
+                  (status && !status.profileDir
+                    ? 'Program prijavo prekopira iz enega vaših Chromovih profilov. Izberite, iz katerega.'
+                    : 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.')}
               </span>
             )}
+            <ChromeProfilePicker className="pt-1" />
           </CardContent>
           <CardFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={() => runCheck(false)} disabled={checking}>
               <RefreshCw className={checking ? 'animate-spin' : undefined} />
               Preveri
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => runCheck(true)} disabled={checking}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => runCheck(true)}
+              disabled={checking || !status?.profileDir}
+            >
               Osveži profil
             </Button>
           </CardFooter>

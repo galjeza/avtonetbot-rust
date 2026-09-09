@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { BrowserStatus } from '@shared/types';
+import type { BrowserStatus, ChromeProfileInfo } from '@shared/types';
 
 interface BrowserValue {
   status: BrowserStatus | null;
@@ -16,6 +16,12 @@ interface BrowserValue {
   error: string | null;
   /** Re-runs the session check; `reseed` first replaces our profile copy. */
   check: (reseed?: boolean) => Promise<void>;
+  /** The user's Chrome profiles, best candidate for the session first. */
+  profiles: ChromeProfileInfo[];
+  /** Copies the session from the given profile, then checks it. */
+  selectProfile: (profileDir: string) => Promise<void>;
+  /** The profile a selection is being applied to, while it runs. */
+  selecting: string | null;
 }
 
 const BrowserContext = createContext<BrowserValue | null>(null);
@@ -31,14 +37,15 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
   const [status, setStatus] = useState<BrowserStatus | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<ChromeProfileInfo[]>([]);
+  const [selecting, setSelecting] = useState<string | null>(null);
 
-  const check = useCallback(async (reseed = false): Promise<void> => {
+  /** Both entry points differ only in which call produces the status. */
+  const run = useCallback(async (produce: () => Promise<BrowserStatus>): Promise<void> => {
     setChecking(true);
     setError(null);
     try {
-      setStatus(
-        reseed ? await window.api.reseedBrowserProfile() : await window.api.checkBrowserSession(),
-      );
+      setStatus(await produce());
     } catch (e) {
       setStatus(null);
       setError(e instanceof Error ? e.message : String(e));
@@ -47,13 +54,37 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
     }
   }, []);
 
+  const check = useCallback(
+    (reseed = false): Promise<void> =>
+      run(reseed ? window.api.reseedBrowserProfile : window.api.checkBrowserSession),
+    [run],
+  );
+
+  const selectProfile = useCallback(
+    async (profileDir: string): Promise<void> => {
+      setSelecting(profileDir);
+      try {
+        await run(() => window.api.selectChromeProfile(profileDir));
+      } finally {
+        setSelecting(null);
+      }
+    },
+    [run],
+  );
+
   useEffect(() => {
     check();
+    // Listing reads the profile directories on disk, so it does not need the
+    // browser and can settle while the session check is still running.
+    window.api
+      .listChromeProfiles()
+      .then(setProfiles)
+      .catch(() => setProfiles([]));
   }, [check]);
 
   const value = useMemo<BrowserValue>(
-    () => ({ status, checking, error, check }),
-    [status, checking, error, check],
+    () => ({ status, checking, error, check, profiles, selectProfile, selecting }),
+    [status, checking, error, check, profiles, selectProfile, selecting],
   );
 
   return <BrowserContext.Provider value={value}>{children}</BrowserContext.Provider>;

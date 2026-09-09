@@ -44,7 +44,12 @@ export function useReadiness(): {
       id: 'browser',
       label: 'Brskalnik je prijavljen v avto.net',
       ok: Boolean(status?.loggedIn),
-      hint: 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.',
+      // Nothing is copied until a profile is picked, so telling someone in
+      // that state to refresh the copy would point them at the wrong step.
+      hint:
+        status && !status.profileDir
+          ? 'Izberite Chromov profil, iz katerega naj program prekopira prijavo.'
+          : 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.',
       to: '/',
     },
     {

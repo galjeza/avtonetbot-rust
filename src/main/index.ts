@@ -6,11 +6,18 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import type {
   ActiveAd,
   BrowserStatus,
+  ChromeProfileInfo,
   OpenFolderResult,
   RenewProgress,
   UserData,
 } from '@shared/types';
-import { checkBrowserSession, closeBrowser, reseedBotProfile } from '../scraper/browser';
+import {
+  checkBrowserSession,
+  closeBrowser,
+  listChromeProfiles,
+  reseedBotProfile,
+  selectChromeProfile,
+} from '../scraper/browser';
 import { fetchAllActiveAds } from '../scraper/get-active-ads';
 import { renewAd } from '../scraper/renew-ad';
 import { getUserData, setUserData, store } from './store';
@@ -163,6 +170,16 @@ app.whenReady().then(() => {
     await reseedBotProfile();
     return checkBrowserSession();
   });
+
+  ipcMain.handle('list-chrome-profiles', (): ChromeProfileInfo[] => listChromeProfiles());
+
+  ipcMain.handle(
+    'select-chrome-profile',
+    async (_event, profileDir: string): Promise<BrowserStatus> => {
+      await selectChromeProfile(profileDir);
+      return checkBrowserSession();
+    },
+  );
 
   ipcMain.handle('save-user-data', (_event, userData: UserData): boolean => {
     setUserData(userData);
