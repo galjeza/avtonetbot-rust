@@ -42,6 +42,40 @@ function hash(fields: CarField[], adType: AdType, scheme: Scheme, includeName: b
   return sanitize(out);
 }
 
+/**
+ * Written beside an ad's photos so the photo editor can name it properly
+ * rather than unpicking the directory name.
+ */
+const METADATA_FILE = 'ad.json';
+
+export interface AdImagesMetadata {
+  adId?: string;
+  adType?: AdType;
+  brand?: string;
+  model?: string;
+  year?: string;
+  km?: string;
+  savedAt?: string;
+}
+
+export function writeAdImagesMetadata(setDir: string, metadata: AdImagesMetadata): void {
+  try {
+    fs.writeFileSync(path.join(setDir, METADATA_FILE), JSON.stringify(metadata, null, 2));
+  } catch {
+    /* the photos matter, the label does not */
+  }
+}
+
+export function readAdImagesMetadata(setDir: string): AdImagesMetadata | null {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.join(setDir, METADATA_FILE), 'utf8'),
+    ) as AdImagesMetadata;
+  } catch {
+    return null;
+  }
+}
+
 export function getAdImagesDirectory(
   fields: CarField[],
   userDataPath: string,

@@ -1,5 +1,7 @@
 import type {
   ActiveAd,
+  AdImageSet,
+  AdPhoto,
   BrowserStatus,
   ChromeProfileInfo,
   OpenFolderResult,
@@ -44,6 +46,21 @@ export interface Api {
   /** Copies the session from a different profile and re-checks it. */
   selectChromeProfile(profileDir: string): Promise<BrowserStatus>;
   openAdImagesFolder(): Promise<OpenFolderResult>;
+  openAdImageSetFolder(dir: string): Promise<OpenFolderResult>;
+
+  /** Every ad with photos saved, most recently changed first. */
+  listAdImageSets(): Promise<AdImageSet[]>;
+  /** One set's photos, in the order the ad will publish them. */
+  readAdImages(dir: string): Promise<AdPhoto[]>;
+  /**
+   * Rewrites the set to exactly this order. Photos left out are deleted, so
+   * this covers both reordering and removing.
+   */
+  applyAdImageOrder(dir: string, order: string[]): Promise<AdPhoto[]>;
+  /** Asks for a file and puts it in that photo's place. */
+  replaceAdImage(dir: string, file: string): Promise<AdPhoto[]>;
+  /** Asks for files and appends them to the set. */
+  addAdImages(dir: string): Promise<AdPhoto[]>;
 
   /** Subscribes to batch progress; returns an unsubscribe function. */
   onRenewProgress(callback: (progress: RenewProgress) => void): () => void;

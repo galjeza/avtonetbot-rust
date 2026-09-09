@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
 
 import type {
   ActiveAd,
+  AdImageSet,
+  AdPhoto,
   BrowserStatus,
   ChromeProfileInfo,
   OpenFolderResult,
@@ -21,10 +23,28 @@ import {
 } from '../scraper/browser';
 import { fetchAllActiveAds } from '../scraper/get-active-ads';
 import { renewAd } from '../scraper/renew-ad';
+import {
+  AD_IMAGE_SCHEME,
+  addAdImages,
+  adImageSetPath,
+  adImagesRoot,
+  applyAdImageOrder,
+  handleAdImageRequest,
+  listAdImageSets,
+  readAdImages,
+  replaceAdImage,
+} from './ad-images';
 import { getUserData, setUserData, store } from './store';
 import { initUpdater, isUpdateAvailable } from './updater';
 
 const isDev = !app.isPackaged;
+
+// Saved ad photos load through their own scheme; see handleAdImageRequest.
+// Declaring it standard and secure lets the renderer treat those URLs like any
+// other image source, which a non-privileged custom scheme would not allow.
+protocol.registerSchemesAsPrivileged([
+  { scheme: AD_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -148,6 +168,8 @@ async function handleRenewAds(
 }
 
 app.whenReady().then(() => {
+  protocol.handle(AD_IMAGE_SCHEME, handleAdImageRequest);
+
   ipcMain.on('store-get', (event, key: string) => {
     event.returnValue = store.get(key as 'userData');
   });
@@ -196,13 +218,37 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('open-ad-images-folder', async (): Promise<OpenFolderResult> => {
-    const adImagesPath = path.join(app.getPath('userData'), 'AdImages');
+    const adImagesPath = adImagesRoot();
     if (!fs.existsSync(adImagesPath)) {
       fs.mkdirSync(adImagesPath, { recursive: true });
     }
     const error = await shell.openPath(adImagesPath);
     return error ? { ok: false, error } : { ok: true };
   });
+
+  ipcMain.handle(
+    'open-ad-image-set-folder',
+    async (_event, dir: string): Promise<OpenFolderResult> => {
+      const error = await shell.openPath(adImageSetPath(dir));
+      return error ? { ok: false, error } : { ok: true };
+    },
+  );
+
+  ipcMain.handle('list-ad-image-sets', (): AdImageSet[] => listAdImageSets());
+
+  ipcMain.handle('read-ad-images', (_event, dir: string): AdPhoto[] => readAdImages(dir));
+
+  ipcMain.handle('apply-ad-image-order', (_event, dir: string, order: string[]): AdPhoto[] =>
+    applyAdImageOrder(dir, order),
+  );
+
+  ipcMain.handle('replace-ad-image', (_event, dir: string, file: string): Promise<AdPhoto[]> =>
+    replaceAdImage(mainWindow, dir, file),
+  );
+
+  ipcMain.handle('add-ad-images', (_event, dir: string): Promise<AdPhoto[]> =>
+    addAdImages(mainWindow, dir),
+  );
 
   createWindow();
   if (!isDev) initUpdater();

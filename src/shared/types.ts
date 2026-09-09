@@ -95,6 +95,29 @@ export interface ChromeProfileInfo {
   hasAvtonetCookies: boolean;
 }
 
+/** One ad's saved photo set, as listed in the photo editor. */
+export interface AdImageSet {
+  /** Directory name under AdImages. Identifies the set in every operation. */
+  dir: string;
+  /** Heading, e.g. "BMW 320d" — from saved metadata, else read off the directory name. */
+  title: string;
+  /** Supporting detail, e.g. "2015 · 150.000 km". Empty when nothing is known. */
+  subtitle: string;
+  photoCount: number;
+  /** Newest file modification time in the set, ms since the epoch. */
+  updatedAt: number;
+  adType?: AdType;
+}
+
+/** One photo within a set. */
+export interface AdPhoto {
+  /** File name on disk, e.g. "0.jpg". The order of the list is the ad's order. */
+  file: string;
+  /** adimg:// URL to render it, carrying a cache-buster so edits show up. */
+  url: string;
+  bytes: number;
+}
+
 export interface OpenFolderResult {
   ok: boolean;
   error?: string;

@@ -6,8 +6,8 @@ import type { Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
 import { AVTONET_EDIT_PREFIX, AVTONET_IMAGES_PREFIX, SLOW_TIMEOUT_MS } from '../constants';
-import { getAdImagesDirectory } from '../utils/ad-images';
-import { field, type CarField } from '../utils/car-fields';
+import { getAdImagesDirectory, writeAdImagesMetadata } from '../utils/ad-images';
+import { field, fieldValue, type CarField } from '../utils/car-fields';
 import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/images';
 import { humanClick, humanReplace, jitteredWait } from '../utils/human';
 import { wait } from '../utils/wait';
@@ -338,6 +338,20 @@ export const getCarData = async (
   } else {
     console.log('[getCarData] Images already downloaded', { path: adImagesDirectory });
   }
+
+  // Written every time, not just on download, so sets saved by earlier
+  // versions pick up a proper name the next time their ad is renewed. The
+  // values are read at the same point the directory name was built from them,
+  // so the label always matches the directory it sits in.
+  writeAdImagesMetadata(adImagesDirectory, {
+    adId,
+    adType,
+    brand: fieldValue(carData, 'znamkavozila'),
+    model: fieldValue(carData, 'modelvozila'),
+    year: fieldValue(carData, 'letoReg'),
+    km: fieldValue(carData, 'prevozenikm'),
+    savedAt: new Date().toISOString(),
+  });
 
   console.log('[getCarData] Done', {
     fields: carData.length,

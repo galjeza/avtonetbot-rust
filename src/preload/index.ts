@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { Api } from '@shared/api';
 import type {
   ActiveAd,
+  AdImageSet,
+  AdPhoto,
   BrowserStatus,
   ChromeProfileInfo,
   OpenFolderResult,
@@ -43,6 +45,21 @@ const api = {
     ipcRenderer.invoke('select-chrome-profile', profileDir),
 
   openAdImagesFolder: (): Promise<OpenFolderResult> => ipcRenderer.invoke('open-ad-images-folder'),
+
+  openAdImageSetFolder: (dir: string): Promise<OpenFolderResult> =>
+    ipcRenderer.invoke('open-ad-image-set-folder', dir),
+
+  listAdImageSets: (): Promise<AdImageSet[]> => ipcRenderer.invoke('list-ad-image-sets'),
+
+  readAdImages: (dir: string): Promise<AdPhoto[]> => ipcRenderer.invoke('read-ad-images', dir),
+
+  applyAdImageOrder: (dir: string, order: string[]): Promise<AdPhoto[]> =>
+    ipcRenderer.invoke('apply-ad-image-order', dir, order),
+
+  replaceAdImage: (dir: string, file: string): Promise<AdPhoto[]> =>
+    ipcRenderer.invoke('replace-ad-image', dir, file),
+
+  addAdImages: (dir: string): Promise<AdPhoto[]> => ipcRenderer.invoke('add-ad-images', dir),
 
   /** Subscribes to batch progress; returns an unsubscribe function. */
   onRenewProgress: (callback: (progress: RenewProgress) => void): (() => void) => {
