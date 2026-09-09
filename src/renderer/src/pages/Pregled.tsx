@@ -3,6 +3,7 @@ import {
   CircleAlert,
   Download,
   Globe,
+  LogIn,
   Loader2,
   Mail,
   RefreshCw,
@@ -42,12 +43,17 @@ function Verified({ label = 'Preverjeno' }: { label?: string }): JSX.Element {
 
 export default function Pregled(): JSX.Element {
   const { user, subscription, loading } = useAccount();
-  const { status, checking, error, check, selecting } = useBrowser();
+  const { status, checking, error, check, selecting, signIn, awaitingLogin } = useBrowser();
   const { checks, ready } = useReadiness();
   const { updateAvailable, checking: checkingUpdate, version } = useUpdate();
 
   const runCheck = async (reseed: boolean): Promise<void> => {
     await check(reseed);
+    toast.dismiss();
+  };
+
+  const runSignIn = async (): Promise<void> => {
+    await signIn();
     toast.dismiss();
   };
 
@@ -158,9 +164,11 @@ export default function Pregled(): JSX.Element {
             {checking ? (
               <span className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 className="size-4 animate-spin" />
-                {selecting
-                  ? 'Kopiramo profil in preverjamo sejo.'
-                  : 'Odpiramo Chrome, da preverimo sejo.'}
+                {awaitingLogin
+                  ? 'V odprtem oknu se prijavite v avto.net. Okno se zapre samo.'
+                  : selecting
+                    ? 'Kopiramo profil in preverjamo sejo.'
+                    : 'Odpiramo Chrome, da preverimo sejo.'}
               </span>
             ) : status?.loggedIn ? (
               <Verified />
@@ -179,10 +187,17 @@ export default function Pregled(): JSX.Element {
             )}
             <ChromeProfilePicker className="pt-1" />
           </CardContent>
-          <CardFooter className="gap-2">
+          <CardFooter className="flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => runCheck(false)} disabled={checking}>
               <RefreshCw className={checking ? 'animate-spin' : undefined} />
               Preveri
+            </Button>
+            {/* On current Windows Chrome the copied profile arrives signed out
+                whatever we do, so signing in by hand is the normal way through
+                rather than a last resort. */}
+            <Button variant="outline" size="sm" onClick={runSignIn} disabled={checking}>
+              <LogIn />
+              Prijavi se
             </Button>
             <Button
               variant="ghost"

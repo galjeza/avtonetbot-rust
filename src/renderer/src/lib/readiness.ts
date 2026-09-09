@@ -49,7 +49,7 @@ export function useReadiness(): {
       hint:
         status && !status.profileDir
           ? 'Izberite Chromov profil, iz katerega naj program prekopira prijavo.'
-          : 'Prijavite se v avto.net v svojem Chromu, nato osvežite profil.',
+          : 'Kliknite "Prijavi se" na pregledu in se prijavite v avto.net v oknu, ki se odpre.',
       to: '/',
     },
     {

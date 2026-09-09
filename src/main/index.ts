@@ -17,6 +17,7 @@ import {
   listChromeProfiles,
   reseedBotProfile,
   selectChromeProfile,
+  signInManually,
 } from '../scraper/browser';
 import { fetchAllActiveAds } from '../scraper/get-active-ads';
 import { renewAd } from '../scraper/renew-ad';
@@ -39,7 +40,13 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show());
+  // Start maximized so wide tables (e.g. Obnovi oglase) show all columns.
+  mainWindow.maximize();
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.maximize();
+    mainWindow?.show();
+  });
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -170,6 +177,8 @@ app.whenReady().then(() => {
     await reseedBotProfile();
     return checkBrowserSession();
   });
+
+  ipcMain.handle('sign-in-manually', (): Promise<BrowserStatus> => signInManually());
 
   ipcMain.handle('list-chrome-profiles', (): ChromeProfileInfo[] => listChromeProfiles());
 

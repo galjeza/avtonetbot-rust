@@ -4,7 +4,7 @@ import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 
 import type { BrowserStatus } from '@shared/types';
 import { getUserData, setUserData } from '../../main/store';
-import { DEFAULT_TIMEOUT_MS, LOGIN_SUCCESS_URL } from '../constants';
+import { DEFAULT_TIMEOUT_MS, LOGIN_URL, LOGIN_SUCCESS_URL } from '../constants';
 import { resolveChromePath } from './chrome-path';
 import { listChromeProfiles } from './chrome-profiles';
 import {
@@ -25,6 +25,11 @@ const PORT_WAIT_TIMEOUT_MS = 30 * 1000;
  * forgotten window tidies itself away.
  */
 const KEEP_OPEN_MS = 60 * 1000;
+
+/** How long a manual sign-in waits for the user before giving up on them. */
+const MANUAL_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+
+const MANUAL_LOGIN_POLL_MS = 1000;
 
 /**
  * Guards the launch step. Two concurrent callers would each see a closed debug
@@ -89,8 +94,11 @@ export { listChromeProfiles };
 export interface BrowserSession {
   browser: Browser;
   page: Page;
-  /** Disconnects but leaves Chrome running, so the next call can reuse it. */
-  release: () => Promise<void>;
+  /**
+   * Disconnects but leaves Chrome running, so the next call can reuse it.
+   * Pass false to leave the tab open too, for when the user is using it.
+   */
+  release: (closePage?: boolean) => Promise<void>;
   profileSeeded: boolean;
   /** True when this call started Chrome, rather than attaching to a running one. */
   launched: boolean;
@@ -121,13 +129,13 @@ export async function setupBrowser(): Promise<BrowserSession> {
   page.setDefaultNavigationTimeout(DEFAULT_TIMEOUT_MS);
 
   let released = false;
-  const release = async (): Promise<void> => {
+  const release = async (closePage = true): Promise<void> => {
     if (released) return;
     released = true;
     activeSessions = Math.max(0, activeSessions - 1);
 
     try {
-      if (!page.isClosed()) await page.close();
+      if (closePage && !page.isClosed()) await page.close();
     } catch {
       /* already gone */
     }
@@ -209,6 +217,100 @@ export async function selectChromeProfile(profileDir: string): Promise<void> {
 }
 
 /**
+ * Ends a session, unless the user asked for the window to stay up.
+ *
+ * The wait is deliberately not awaited: the answer is already known, and
+ * holding the reply back for a minute would leave the app looking stuck. The
+ * window stays on the page the check landed on, which is the whole point — a
+ * report of "not signed in" is worth very little next to seeing it.
+ */
+async function finishInspection(session: BrowserSession): Promise<void> {
+  if (getUserData()?.keepBrowserOpen) {
+    setTimeout(() => void endSession(session).catch(() => undefined), KEEP_OPEN_MS);
+    return;
+  }
+  await endSession(session);
+}
+
+/**
+ * Watches every open tab until one lands on the page avto.net redirects to
+ * after a successful sign-in.
+ *
+ * Polling rather than a navigation listener because the user is driving: they
+ * may accept the cookie banner, get bounced by Turnstile, retry, or do the
+ * whole thing in a tab they opened themselves. Only the destination matters.
+ *
+ * @returns false if they ran out of time or closed the window.
+ */
+async function waitForManualLogin(browser: Browser): Promise<boolean> {
+  const deadline = Date.now() + MANUAL_LOGIN_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    let pages: Page[];
+    try {
+      pages = await browser.pages();
+    } catch {
+      return false; // they closed the browser
+    }
+
+    for (const page of pages) {
+      try {
+        if (page.url().startsWith(LOGIN_SUCCESS_URL)) return true;
+      } catch {
+        /* tab closing as we look at it */
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, MANUAL_LOGIN_POLL_MS));
+  }
+
+  return false;
+}
+
+/**
+ * Opens the bot's browser on avto.net and waits for the user to sign in there
+ * themselves.
+ *
+ * This is the way in now, not a fallback. Copying the profile stopped carrying
+ * the session on current Windows Chrome — from version 127 cookie values are
+ * sealed with app-bound encryption, so the copy arrives with an intact cookie
+ * database whose contents Chrome then refuses to decrypt and discards. Filling
+ * the form ourselves would work, but a real person typing into a real window
+ * is both simpler and the last thing avto.net should want to flag: the login,
+ * of everything we do, is what gets looked at hardest.
+ *
+ * What it leaves behind is a session in our own profile, encrypted with a key
+ * that profile can actually use, so it lasts until avto.net expires it.
+ */
+export async function signInManually(): Promise<BrowserStatus> {
+  const session = await setupBrowser();
+  let signedIn = false;
+  try {
+    await session.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 0 });
+    await session.page.bringToFront().catch(() => undefined);
+
+    signedIn = await waitForManualLogin(session.browser);
+    return {
+      loggedIn: signedIn,
+      // Reporting the destination we matched rather than re-reading the tab,
+      // which the user may have closed the moment they were done.
+      finalUrl: signedIn ? LOGIN_SUCCESS_URL : '',
+      profileSeeded: session.profileSeeded,
+      profileDir: seededProfileDir(),
+    };
+  } finally {
+    if (signedIn) {
+      await endSession(session).catch(() => undefined);
+    } else {
+      // Running out of time does not mean they gave up — they may be halfway
+      // through typing. Disconnect without touching their tab; the next check
+      // attaches to the same browser and will see the session if they finish.
+      await session.release(false).catch(() => undefined);
+    }
+  }
+}
+
+/**
  * Reports whether the copied profile still holds a valid avto.net session.
  *
  * Leaves the machine as it found it: a check that had to start Chrome shuts it
@@ -233,14 +335,6 @@ export async function checkBrowserSession(): Promise<BrowserStatus> {
       profileDir: seededProfileDir(),
     };
   } finally {
-    if (getUserData()?.keepBrowserOpen) {
-      // Deliberately not awaited: the answer is already known, and holding the
-      // reply back for a minute would leave the app looking stuck. The window
-      // stays on the page the check landed on, which is the whole point — a
-      // report of "not signed in" is worth very little next to seeing it.
-      setTimeout(() => void endSession(session).catch(() => undefined), KEEP_OPEN_MS);
-    } else {
-      await endSession(session);
-    }
+    await finishInspection(session);
   }
 }

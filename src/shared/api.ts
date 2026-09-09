@@ -33,6 +33,11 @@ export interface Api {
   checkUpdateStatus(): Promise<boolean>;
   checkBrowserSession(): Promise<BrowserStatus>;
   reseedBrowserProfile(): Promise<BrowserStatus>;
+  /**
+   * Opens the bot's browser on avto.net and resolves once the user has signed
+   * in there, or after five minutes without them doing so.
+   */
+  signInManually(): Promise<BrowserStatus>;
 
   /** The user's Chrome profiles, best candidate for the avto.net session first. */
   listChromeProfiles(): Promise<ChromeProfileInfo[]>;

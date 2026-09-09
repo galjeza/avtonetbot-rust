@@ -22,6 +22,10 @@ interface BrowserValue {
   selectProfile: (profileDir: string) => Promise<void>;
   /** The profile a selection is being applied to, while it runs. */
   selecting: string | null;
+  /** Opens the browser so the user can sign in to avto.net themselves. */
+  signIn: () => Promise<void>;
+  /** True while that window is open and waiting for them. */
+  awaitingLogin: boolean;
 }
 
 const BrowserContext = createContext<BrowserValue | null>(null);
@@ -39,6 +43,7 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
   const [error, setError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<ChromeProfileInfo[]>([]);
   const [selecting, setSelecting] = useState<string | null>(null);
+  const [awaitingLogin, setAwaitingLogin] = useState(false);
 
   /** Both entry points differ only in which call produces the status. */
   const run = useCallback(async (produce: () => Promise<BrowserStatus>): Promise<void> => {
@@ -72,6 +77,15 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
     [run],
   );
 
+  const signIn = useCallback(async (): Promise<void> => {
+    setAwaitingLogin(true);
+    try {
+      await run(window.api.signInManually);
+    } finally {
+      setAwaitingLogin(false);
+    }
+  }, [run]);
+
   useEffect(() => {
     check();
     // Listing reads the profile directories on disk, so it does not need the
@@ -83,8 +97,18 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
   }, [check]);
 
   const value = useMemo<BrowserValue>(
-    () => ({ status, checking, error, check, profiles, selectProfile, selecting }),
-    [status, checking, error, check, profiles, selectProfile, selecting],
+    () => ({
+      status,
+      checking,
+      error,
+      check,
+      profiles,
+      selectProfile,
+      selecting,
+      signIn,
+      awaitingLogin,
+    }),
+    [status, checking, error, check, profiles, selectProfile, selecting, signIn, awaitingLogin],
   );
 
   return <BrowserContext.Provider value={value}>{children}</BrowserContext.Provider>;

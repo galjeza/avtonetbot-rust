@@ -20,7 +20,7 @@ import { useBrowser } from '@/lib/browser';
 
 export default function Konfiguracija(): JSX.Element {
   const { user, save } = useAccount();
-  const { status, checking } = useBrowser();
+  const { status, checking, signIn, awaitingLogin } = useBrowser();
   const keepBrowserOpen = user?.keepBrowserOpen ?? false;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -119,21 +119,24 @@ export default function Konfiguracija(): JSX.Element {
         <CardHeader>
           <CardTitle>Chromov profil</CardTitle>
           <CardDescription>
-            Program se v avto.net ne prijavlja sam — prijavo prekopira iz Chroma, ki ga uporabljate.
-            Izberite profil, v katerem ste prijavljeni v avto.net.
+            Program poskusi prijavo prekopirati iz Chroma, ki ga uporabljate — izberite profil, v
+            katerem ste prijavljeni v avto.net. Novejši Chrome na Windowsu tega ne dovoli več, zato
+            se v tem primeru enkrat prijavite v oknu, ki ga odpre gumb spodaj.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-3">
           <ChromeProfilePicker />
           <p className="text-muted-foreground text-xs">
-            {checking
-              ? 'Kopiram profil in preverjam sejo…'
-              : !status?.profileDir
-                ? 'Profil še ni izbran, zato prijave še nismo prekopirali.'
-                : status.loggedIn
-                  ? 'Izbrani profil je prijavljen v avto.net.'
-                  : 'Izbrani profil ni prijavljen v avto.net. Prijavite se vanj v Chromu ali izberite drugega.'}
+            {awaitingLogin
+              ? 'V odprtem oknu se prijavite v avto.net. Okno se zapre samo.'
+              : checking
+                ? 'Kopiram profil in preverjam sejo…'
+                : !status?.profileDir
+                  ? 'Profil še ni izbran, zato prijave še nismo prekopirali.'
+                  : status.loggedIn
+                    ? 'Izbrani profil je prijavljen v avto.net.'
+                    : 'Izbrani profil ni prijavljen v avto.net. Prijavite se vanj v Chromu ali izberite drugega.'}
           </p>
 
           {status?.finalUrl && !status.loggedIn && (
@@ -162,6 +165,12 @@ export default function Konfiguracija(): JSX.Element {
             </span>
           </label>
         </CardContent>
+
+        <CardFooter>
+          <Button variant="outline" onClick={() => signIn()} disabled={checking}>
+            Prijavi se v avto.net
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );

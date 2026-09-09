@@ -34,6 +34,8 @@ const api = {
 
   reseedBrowserProfile: (): Promise<BrowserStatus> => ipcRenderer.invoke('reseed-browser-profile'),
 
+  signInManually: (): Promise<BrowserStatus> => ipcRenderer.invoke('sign-in-manually'),
+
   listChromeProfiles: (): Promise<ChromeProfileInfo[]> =>
     ipcRenderer.invoke('list-chrome-profiles'),
 
