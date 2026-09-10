@@ -7,7 +7,7 @@ import type { Page } from 'puppeteer-core';
 import type { AdType } from '@shared/types';
 import { AVTONET_EDIT_PREFIX, AVTONET_IMAGES_PREFIX, SLOW_TIMEOUT_MS } from '../constants';
 import { getAdImagesDirectory, writeAdImagesMetadata } from '../utils/ad-images';
-import { field, fieldValue, type CarField } from '../utils/car-fields';
+import { fieldValue, type CarField } from '../utils/car-fields';
 import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/images';
 import { humanClick, humanReplace, jitteredWait } from '../utils/human';
 import { wait } from '../utils/wait';
@@ -37,11 +37,38 @@ const randomSuffix = (length = 10): string =>
     '',
   );
 
-const randomRegistrationYear = (): string => {
+/**
+ * A registration year for the doomed ad that is definitely not the one it had.
+ *
+ * Drawing freely from the last twenty years, as this used to, left a one in
+ * twenty-one chance of landing on the year already in the field. That is a
+ * mutation that changes nothing, and worse, one the read-back cannot tell
+ * apart from a rejected save — the value matches either way.
+ *
+ * Shifting from the original instead guarantees a different year, and keeps it
+ * inside what the field accepts: four digits, 1900 to 2090.
+ */
+function randomRegistrationYear(original: string): string {
   const currentYear = new Date().getFullYear();
-  const minYear = currentYear - 20;
-  return String(Math.floor(Math.random() * (currentYear - minYear + 1)) + minYear);
-};
+  const year = parseInt(original.replace(/\D/g, ''), 10);
+
+  if (!Number.isFinite(year) || year < 1900 || year > currentYear) {
+    // Nothing sensible to shift from, so anywhere in the last two decades.
+    return String(currentYear - 1 - Math.floor(Math.random() * 20));
+  }
+
+  // Far enough that a year-with-tolerance comparison cannot bridge it.
+  const shift = 3 + Math.floor(Math.random() * 8);
+  const earlier = Math.max(1900, year - shift);
+  const later = Math.min(currentYear, year + shift);
+
+  // Direction is random, but a shift clamped back onto the original year at
+  // either end of the range takes the other way instead.
+  const [first, second] = Math.random() < 0.5 ? [earlier, later] : [later, earlier];
+  if (first !== year) return String(first);
+  if (second !== year) return String(second);
+  return String(Math.max(1900, year - 1));
+}
 
 /** VIN characters. I, O and Q are excluded so they cannot be read as 1 and 0. */
 const VIN_ALPHABET = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
@@ -488,7 +515,7 @@ export const getCarData = async (
     console.log('[getCarData] Test mode: skipping edit-form mutation and submit');
   } else {
     const priceField = inputs.find((i) => i.name === 'cena');
-    const letoRegField = field(carData, 'letoReg');
+    const letoRegValue = fieldValue(carData, 'letoReg');
     const kmValue = fieldValue(carData, 'prevozenikm');
     const vinValue = fieldValue(carData, 'VIN');
 
@@ -505,7 +532,7 @@ export const getCarData = async (
       newPrice: priceField
         ? String(Math.max(100, (parseInt(priceField.value, 10) || 1000) + randomPriceOffset()))
         : null,
-      newYear: letoRegField ? randomRegistrationYear() : null,
+      newYear: letoRegValue ? randomRegistrationYear(letoRegValue) : null,
       newKm: kmValue ? randomMileage(kmValue) : null,
       newVin: vinValue ? randomVin(vinValue) : null,
       archiveNote: archiveMarker === null ? null : buildArchiveNote(adId, carData, archiveMarker),
