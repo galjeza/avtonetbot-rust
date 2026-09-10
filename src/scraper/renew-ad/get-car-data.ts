@@ -31,7 +31,7 @@ const randomPriceOffset = (): number => {
 
 const RANDOM_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-/** Noise appended to the old ad's description so its text stops matching. */
+/** Token written into the old ad's description so the read-back can find it. */
 const randomSuffix = (length = 10): string =>
   Array.from({ length }, () => RANDOM_CHARS[Math.floor(Math.random() * RANDOM_CHARS.length)]).join(
     '',
@@ -43,6 +43,175 @@ const randomRegistrationYear = (): string => {
   return String(Math.floor(Math.random() * (currentYear - minYear + 1)) + minYear);
 };
 
+/** VIN characters. I, O and Q are excluded so they cannot be read as 1 and 0. */
+const VIN_ALPHABET = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
+
+/** ISO 3779 letter values, used only to compute the check digit. */
+const VIN_LETTER_VALUES: Record<string, number> = {
+  A: 1,
+  B: 2,
+  C: 3,
+  D: 4,
+  E: 5,
+  F: 6,
+  G: 7,
+  H: 8,
+  J: 1,
+  K: 2,
+  L: 3,
+  M: 4,
+  N: 5,
+  P: 7,
+  R: 9,
+  S: 2,
+  T: 3,
+  U: 4,
+  V: 5,
+  W: 6,
+  X: 7,
+  Y: 8,
+  Z: 9,
+};
+
+const VIN_WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+
+const randomVinChar = (): string => VIN_ALPHABET[Math.floor(Math.random() * VIN_ALPHABET.length)];
+
+/**
+ * The ISO 3779 check digit for a 17-character VIN.
+ *
+ * Position 9 carries weight 0, so whatever currently sits there does not
+ * affect the result and the candidate can be passed in unmodified.
+ */
+function vinCheckDigit(vin: string): string {
+  let sum = 0;
+  for (let i = 0; i < 17; i += 1) {
+    const char = vin[i];
+    const value = /\d/.test(char) ? Number(char) : VIN_LETTER_VALUES[char];
+    if (value === undefined) return '0';
+    sum += value * VIN_WEIGHTS[i];
+  }
+  const remainder = sum % 11;
+  return remainder === 10 ? 'X' : String(remainder);
+}
+
+/**
+ * A different VIN for the ad we are about to delete.
+ *
+ * The VIN is the one field on a car that is unique by definition, so leaving
+ * it untouched left the archived copy and its replacement sharing an exact
+ * key. Unchecking "objavi VIN" only hides it from the public page; the value
+ * stays in avto.net's database, which is where the matching happens.
+ *
+ * The first three characters (the manufacturer's WMI) are kept and the check
+ * digit is recomputed, so the result is still a well-formed VIN for the same
+ * make. A malformed one risks the form rejecting the whole submission — which
+ * findUnsavedFields would catch, but as a blocked renewal rather than a fix.
+ */
+function randomVin(original: string): string {
+  const clean = original.trim().toUpperCase();
+  if (clean.length !== 17) {
+    return Array.from({ length: clean.length || 17 }, randomVinChar).join('');
+  }
+
+  const wmi = /^[A-HJ-NPR-Z0-9]{3}$/.test(clean.slice(0, 3))
+    ? clean.slice(0, 3)
+    : Array.from({ length: 3 }, randomVinChar).join('');
+
+  const candidate = wmi + Array.from({ length: 14 }, randomVinChar).join('');
+  return `${candidate.slice(0, 8)}${vinCheckDigit(candidate)}${candidate.slice(9)}`;
+}
+
+/**
+ * A mileage that still reads as this car's, but far enough off to stop the two
+ * ads matching on brand + model + year + km.
+ *
+ * Five to fifteen per cent, rounded the way an odometer reading is written.
+ *
+ * @returns null when the ad has no usable mileage to work from.
+ */
+function randomMileage(original: string): string | null {
+  const km = parseInt(original.replace(/\D/g, ''), 10);
+  if (!Number.isFinite(km) || km <= 0) return null;
+
+  const delta = Math.max(1000, Math.round(km * (0.05 + Math.random() * 0.1)));
+  const shifted = km + (Math.random() < 0.5 ? -delta : delta);
+  const rounded = Math.max(1000, Math.round(shifted / 1000) * 1000);
+
+  return String(rounded === km ? km + 1000 : rounded);
+}
+
+/**
+ * The VIN input, which the form ships readonly and unseals on focus
+ * (`onfocus="this.removeAttribute('readonly')"`). Clicking it — which
+ * humanReplace does before typing — is what makes it writable.
+ */
+const VIN_SELECTOR = '#VIN, input[name="VIN"]';
+
+/** Values kept on the archived ad, in the order someone rebuilding it would read them. */
+const ARCHIVE_FIELDS: Array<[name: string, label: string]> = [
+  ['znamkavozila', 'Znamka'],
+  ['modelvozila', 'Model'],
+  ['tipvozila', 'Tip'],
+  ['letoReg', 'Leto registracije'],
+  ['prevozenikm', 'Prevoženi km'],
+  ['cena', 'Cena'],
+  ['oblika', 'Oblika'],
+  ['gorivoText', 'Gorivo'],
+  ['VIN', 'VIN'],
+];
+
+const escapeHtml = (value: string): string =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * What replaces the old ad's description.
+ *
+ * Two jobs at once. It removes the original text, which is what made the
+ * archived copy read as the same ad — the old marker only appended a dozen
+ * characters to a description running to thousands, so the two still matched
+ * almost exactly. And it leaves the ad's real values written down on avto.net
+ * itself, which is the one place they are not otherwise recoverable if the
+ * replacement ad fails to publish.
+ *
+ * The original description is deliberately not among them: reprinting it here
+ * would put the similarity straight back. It goes to the local snapshot
+ * instead, which avto.net never sees.
+ */
+function buildArchiveNote(adId: string, carData: CarField[], marker: string): string {
+  const rows = ARCHIVE_FIELDS.map(([name, label]) => {
+    const value = fieldValue(carData, name);
+    return value ? `${label}: ${escapeHtml(value)}` : null;
+  }).filter((row): row is string => row !== null);
+
+  return [
+    `<p>${marker}</p>`,
+    `<p>Izvirni podatki oglasa ${escapeHtml(adId)} pred obnovo:</p>`,
+    `<p>${rows.join('<br>')}</p>`,
+  ].join('');
+}
+
+/**
+ * Writes the ad exactly as it was scraped, before anything is changed.
+ *
+ * Kept outside AdImages on purpose: that directory's existence is what decides
+ * whether the photos still need downloading, so creating it early would skip
+ * the download.
+ */
+function writeOriginalAdSnapshot(adId: string, adType: AdType, carData: CarField[]): void {
+  try {
+    const dir = path.join(app.getPath('userData'), 'AdBackups');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, `${adId}.json`),
+      JSON.stringify({ adId, adType, savedAt: new Date().toISOString(), fields: carData }, null, 2),
+    );
+  } catch (error) {
+    // A missing snapshot must not stop a renewal that is otherwise fine.
+    console.warn('[getCarData] Could not write the original-ad snapshot', error);
+  }
+}
+
 /** One field we changed and must find changed again after the save. */
 interface Expectation {
   label: string;
@@ -50,15 +219,30 @@ interface Expectation {
   expected: string;
   /** The description round-trips through CKEditor, so only the marker survives verbatim. */
   contains?: boolean;
+  /**
+   * Compare digits only. Number fields come back formatted ("163.000"), and an
+   * exact comparison would report a saved value as unsaved.
+   */
+  digits?: boolean;
+  /**
+   * A field missing on reload is not a failed save. The VIN input is not
+   * rendered on every ad type, and disappears from some forms once "objavi
+   * VIN" is off — neither of which says anything about what we typed.
+   */
+  optional?: boolean;
 }
 
 /** Null for a field this ad type does not have, so nothing is expected of it. */
 interface EditMutation {
   newPrice: string | null;
   newYear: string | null;
-  htmlOpis: string | null;
-  marker: string | null;
-  markerSuffix: string | null;
+  newKm: string | null;
+  /** Replacement VIN; null when the ad has no VIN to replace. */
+  newVin: string | null;
+  /** Replaces the description outright; null when the ad has no description. */
+  archiveNote: string | null;
+  /** Token that has to show up in the saved description. */
+  archiveMarker: string | null;
 }
 
 /**
@@ -88,21 +272,43 @@ const applyEditMutation = async (page: Page, mutation: EditMutation): Promise<Ex
     });
   }
 
+  if (mutation.newKm !== null) {
+    console.log('[getCarData] Adjusting mileage', { newKm: mutation.newKm });
+    await humanReplace(page, 'input[name="prevozenikm"]', mutation.newKm);
+    expectations.push({
+      label: 'prevozenikm',
+      selector: 'input[name="prevozenikm"]',
+      expected: mutation.newKm,
+      digits: true,
+    });
+  }
+
+  if (mutation.newVin !== null) {
+    console.log('[getCarData] Replacing the VIN on the old ad');
+    await humanReplace(page, VIN_SELECTOR, mutation.newVin);
+    expectations.push({
+      label: 'VIN',
+      selector: VIN_SELECTOR,
+      expected: mutation.newVin,
+      optional: true,
+    });
+  }
+
   const vinObjavi = await page.$('#VINobjavi, input[name="VINobjavi"]');
   if (vinObjavi && (await vinObjavi.evaluate((el) => (el as HTMLInputElement).checked))) {
     console.log('[getCarData] Turning off "objavi VIN" on the old ad');
     await humanClick(page, '#VINobjavi, input[name="VINobjavi"]');
   }
 
-  // Break the description's text similarity, and keep the real price and
-  // registration year readable on the ad we are replacing.
-  if (mutation.marker !== null && mutation.markerSuffix !== null && mutation.htmlOpis !== null) {
-    console.log('[getCarData] Appending marker to description', { marker: mutation.marker });
-    await setWysiwygOpis(page, `${mutation.htmlOpis}<p>${mutation.marker}</p>`);
+  // Replaced, not extended. Appending left the original text in place, so the
+  // archived copy still read as the same ad as the one built from it.
+  if (mutation.archiveNote !== null && mutation.archiveMarker !== null) {
+    console.log('[getCarData] Replacing the description with the original values');
+    await setWysiwygOpis(page, mutation.archiveNote);
     expectations.push({
       label: 'opis',
       selector: 'textarea[name="opombe"]',
-      expected: mutation.markerSuffix,
+      expected: mutation.archiveMarker,
       contains: true,
     });
   }
@@ -136,13 +342,25 @@ const findUnsavedFields = async (
   await page.waitForSelector('button[name=ADVIEW]', { timeout: 0 });
   await wait(3);
 
+  const digitsOf = (value: string): string => value.replace(/\D/g, '');
+
   const mismatches: string[] = [];
-  for (const { label, selector, expected, contains } of expectations) {
+  for (const { label, selector, expected, contains, digits, optional } of expectations) {
     const actual = await page
       .$eval(selector, (el) => (el as HTMLInputElement | HTMLTextAreaElement).value)
       .catch(() => null);
-    const saved =
-      actual !== null && (contains ? actual.includes(expected) : actual.trim() === expected);
+
+    if (actual === null && optional) {
+      console.log('[getCarData] Optional field absent on reload, not checking it', { label });
+      continue;
+    }
+
+    const matches = (value: string): boolean => {
+      if (digits) return digitsOf(value) === digitsOf(expected);
+      if (contains) return value.includes(expected);
+      return value.trim() === expected;
+    };
+    const saved = actual !== null && matches(actual);
     if (!saved) {
       // Descriptions run to thousands of characters and this string ends up in
       // a dialog, so show only enough of the value to recognise it.
@@ -181,12 +399,15 @@ const submitEditAndVerify = async (
 };
 
 /**
- * Scrapes every field off an ad's edit form, then nudges the price and
- * registration year and re-submits.
+ * Scrapes every field off an ad's edit form, then rewrites the parts of it
+ * that identify the car and re-submits.
  *
- * The nudge is deliberate: submitting the edit form with slightly different
- * values is what stops avto.net treating the replacement as a duplicate of
- * the ad we are about to delete.
+ * The rewrite is deliberate, and it is applied to the ad we are about to
+ * delete rather than to its replacement: the new ad has to stay accurate for
+ * buyers, while the archived copy only has to stop looking like it. Price,
+ * registration year, mileage, VIN and description all move, because avto.net
+ * matches an incoming ad against the archive and offers to restore the old one
+ * instead of publishing.
  */
 export const getCarData = async (
   page: Page,
@@ -268,25 +489,27 @@ export const getCarData = async (
   } else {
     const priceField = inputs.find((i) => i.name === 'cena');
     const letoRegField = field(carData, 'letoReg');
+    const kmValue = fieldValue(carData, 'prevozenikm');
+    const vinValue = fieldValue(carData, 'VIN');
 
-    // The marker suffix is generated up front so the read-back below has an
-    // exact string to look for inside the saved description.
-    const markerSuffix = htmlOpis !== null ? randomSuffix() : null;
-    const marker =
-      markerSuffix === null
-        ? null
-        : [markerSuffix, priceField?.value ?? '', String(letoRegField?.value ?? '')]
-            .filter((part) => part !== '')
-            .join(' ');
+    // Written before anything on the page is touched, so there is a complete
+    // copy of the ad — description included — even if the edit below is
+    // rejected halfway or the replacement never publishes.
+    writeOriginalAdSnapshot(adId, adType, carData);
+
+    // Generated up front so the read-back has an exact string to look for
+    // inside the saved description.
+    const archiveMarker = htmlOpis !== null ? `ARHIV-${adId}-${randomSuffix()}` : null;
 
     await submitEditAndVerify(page, editUrl, {
       newPrice: priceField
         ? String(Math.max(100, (parseInt(priceField.value, 10) || 1000) + randomPriceOffset()))
         : null,
       newYear: letoRegField ? randomRegistrationYear() : null,
-      htmlOpis,
-      marker,
-      markerSuffix,
+      newKm: kmValue ? randomMileage(kmValue) : null,
+      newVin: vinValue ? randomVin(vinValue) : null,
+      archiveNote: archiveMarker === null ? null : buildArchiveNote(adId, carData, archiveMarker),
+      archiveMarker,
     });
   }
 
