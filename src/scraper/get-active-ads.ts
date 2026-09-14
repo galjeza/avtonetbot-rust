@@ -16,7 +16,51 @@ const PRICE_SELECTORS = [
   '.GO-Results-Price',
 ];
 
+/**
+ * The banner avto.net renders in place of the results list when a search
+ * matches nothing ("Ni zadetkov").
+ */
+const NO_RESULTS_SELECTOR = '.alert.bg-danger';
+const NO_RESULTS_TEXT = /ni\s+zadetkov/i;
+
 const AD_TYPES = Object.keys(AVTONET_URLS) as AdType[];
+
+/**
+ * Waits for the results page to commit to having ads or not having any.
+ *
+ * Waiting on the row selector alone meant a category the broker has nothing in
+ * cost a full DEFAULT_TIMEOUT_MS before the empty list could be reported — and
+ * most brokers have no dostavna and no platišča, so that was two dead minutes
+ * on every single refresh. The "Ni zadetkov" banner says the same thing
+ * immediately, so whichever appears first ends the wait.
+ *
+ * Falling back to 'timeout' keeps the old behaviour if avto.net restyles the
+ * banner: slow, but still correct.
+ */
+async function waitForResultsOutcome(page: Page): Promise<'rows' | 'empty' | 'timeout'> {
+  const handle = await page
+    .waitForFunction(
+      (rowSelector: string, emptySelector: string, emptyText: string) => {
+        if (document.querySelector(rowSelector)) return 'rows';
+
+        const banner = document.querySelector(emptySelector);
+        if (banner && new RegExp(emptyText, 'i').test(banner.textContent ?? '')) return 'empty';
+
+        return null;
+      },
+      { timeout: DEFAULT_TIMEOUT_MS },
+      RESULTS_ROW_SELECTOR,
+      NO_RESULTS_SELECTOR,
+      NO_RESULTS_TEXT.source,
+    )
+    .catch(() => null);
+
+  if (!handle) return 'timeout';
+
+  const outcome = await handle.jsonValue();
+  await handle.dispose();
+  return outcome === 'rows' ? 'rows' : 'empty';
+}
 
 /** Walks one results list, following "next page" until it runs out. */
 async function scrapeResultsList(
@@ -31,14 +75,12 @@ async function scrapeResultsList(
   const ads: ActiveAd[] = [];
 
   for (;;) {
-    // A broker with no ads in this category never renders a row; treat that as
-    // an empty list rather than an error.
-    const hasRows = await page
-      .waitForSelector(RESULTS_ROW_SELECTOR, { timeout: DEFAULT_TIMEOUT_MS })
-      .then(() => true)
-      .catch(() => false);
-
-    if (!hasRows) break;
+    // A broker with no ads in this category is the normal case, not an error.
+    const outcome = await waitForResultsOutcome(page);
+    if (outcome !== 'rows') {
+      console.log('[scrapeResultsList] No rows on this page', { adType, outcome });
+      break;
+    }
 
     // Thumbnails are lazy-loaded; wait until at least one real src appears so
     // the scraped photoUrl is not a data: placeholder.

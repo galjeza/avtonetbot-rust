@@ -173,6 +173,13 @@ interface Expectation {
    */
   digits?: boolean;
   /**
+   * The field was emptied, and "empty" has two spellings. avto.net stores a
+   * cleared VIN as 0 and renders that back into the input, so an exact
+   * comparison against "" reported a save that had worked as a failure and
+   * aborted the renewal.
+   */
+  cleared?: boolean;
+  /**
    * A field missing on reload is not a failed save. The VIN input is not
    * rendered on every ad type, and disappears from some forms once "objavi
    * VIN" is off — neither of which says anything about what we typed.
@@ -242,6 +249,7 @@ const applyEditMutation = async (page: Page, mutation: EditMutation): Promise<Ex
       label: 'VIN',
       selector: VIN_SELECTOR,
       expected: '',
+      cleared: true,
       optional: true,
     });
   }
@@ -297,7 +305,7 @@ const findUnsavedFields = async (
   const digitsOf = (value: string): string => value.replace(/\D/g, '');
 
   const mismatches: string[] = [];
-  for (const { label, selector, expected, contains, digits, optional } of expectations) {
+  for (const { label, selector, expected, contains, digits, cleared, optional } of expectations) {
     const actual = await page
       .$eval(selector, (el) => (el as HTMLInputElement | HTMLTextAreaElement).value)
       .catch(() => null);
@@ -308,6 +316,8 @@ const findUnsavedFields = async (
     }
 
     const matches = (value: string): boolean => {
+      // "" and "0" both mean the field was emptied; avto.net writes back 0.
+      if (cleared) return value.trim() === '' || value.trim() === '0';
       if (digits) return digitsOf(value) === digitsOf(expected);
       if (contains) return value.includes(expected);
       return value.trim() === expected;
@@ -319,7 +329,7 @@ const findUnsavedFields = async (
       const shown = actual === null ? '—' : actual.length > 60 ? `${actual.slice(0, 60)}…` : actual;
       // The VIN is cleared rather than rewritten, and `pričakovano ""` reads
       // like a bug in the message rather than an empty field.
-      const wanted = expected === '' ? 'prazno' : `"${expected}"`;
+      const wanted = cleared ? 'prazno' : `"${expected}"`;
       mismatches.push(`${label} (pričakovano ${wanted}, na strani "${shown}")`);
     }
   }
