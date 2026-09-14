@@ -9,13 +9,27 @@ export const AVTONET_DELETE_PREFIX = 'https://www.avto.net/_2016mojavtonet/ad_de
 export const LOGIN_URL = 'https://www.avto.net/_2016mojavtonet/';
 export const LOGIN_SUCCESS_URL = 'https://www.avto.net/_2016mojavtonet/welcome.asp';
 
-/** Results pages filtered to one broker; the broker id is appended. */
+/**
+ * Results pages filtered to one broker; the broker id is appended.
+ *
+ * Deliberately down to the two parameters that carry meaning. These used to be
+ * a full copy of avto.net's search form — sixty parameters, including the
+ * positional EQ* equipment masks. avto.net has since added EQ10-EQ12 and
+ * widened EQ8 from nine digits to ten, and a mask of the wrong width does not
+ * fail: it shifts, so every digit lands on the wrong feature and quietly
+ * filters ads out. One broker's cars came back as zero results that way, while
+ * another broker's list was unaffected, because it only excludes ads carrying
+ * the flags the shifted digits happen to hit.
+ *
+ * Everything omitted here is a default avto.net fills in itself. Do not paste
+ * a fresh copy of the form back in — a captured snapshot only starts rotting
+ * again. KAT is the category and arhiv=0 keeps archived ads out, since those
+ * cannot be renewed.
+ */
 export const AVTONET_URLS: Record<AdType, string> = {
-  car: 'https://www.avto.net/Ads/results.asp?znamka=&model=&modelID=&tip=&znamka2=&model2=&tip2=&znamka3=&model3=&tip3=&cenaMin=0&cenaMax=999999&letnikMin=0&letnikMax=2090&bencin=0&starost2=999&oblika=0&ccmMin=0&ccmMax=99999&mocMin=0&mocMax=999999&kmMin=0&kmMax=9999999&kwMin=0&kwMax=999999&motortakt=0&motorvalji=0&lokacija=0&sirina=0&dolzina=&dolzinaMIN=0&dolzinaMAX=100&nosilnostMIN=0&nosilnostMAX=999999&lezisc=&presek=0&premer=0&col=0&vijakov=0&EToznaka=0&vozilo=&airbag=&barva=&barvaint=&EQ1=1000000000&EQ2=1000000000&EQ3=1000000000&EQ4=100000000&EQ5=1000000000&EQ6=1000001000&EQ7=1110100120&EQ8=101000000&EQ9=1000000000&KAT=1010000000&PIA=&PIAzero=&PIAOut=&PSLO=&akcija=0&paketgarancije=&prikazkategorije=0&kategorija=0&ONLvid=0&ONLnak=0&zaloga=10&arhiv=0&presort=3&tipsort=DESC&stran=1&subSORT=3&subTIPSORT=ASC&broker=',
-  dostavna:
-    'https://www.avto.net/Ads/results.asp?znamka=&model=&modelID=&tip=&znamka2=&model2=&tip2=&znamka3=&model3=&tip3=&cenaMin=0&cenaMax=999999&letnikMin=0&letnikMax=2090&bencin=0&starost2=999&oblika=0&ccmMin=0&ccmMax=99999&mocMin=0&mocMax=999999&kmMin=0&kmMax=9999999&kwMin=0&kwMax=999999&motortakt=0&motorvalji=0&lokacija=0&sirina=0&dolzina=&dolzinaMIN=0&dolzinaMAX=100&nosilnostMIN=0&nosilnostMAX=999999&sedezevMIN=0&sedezevMAX=9&lezisc=&presek=0&premer=0&col=0&vijakov=0&EToznaka=0&vozilo=&airbag=&barva=&barvaint=&doseg=0&EQ1=1000000000&EQ2=1000000000&EQ3=1000000000&EQ4=100000000&EQ5=1000000000&EQ6=1000001000&EQ7=1110100120&EQ8=101000000&EQ9=1000000020&KAT=1020000000&PIA=&PIAzero=&PIAOut=&PSLO=&akcija=0&paketgarancije=&broker=',
-  platisca:
-    'https://www.avto.net/Ads/results.asp?znamka=&model=&modelID=&tip=&znamka2=&model2=&tip2=&znamka3=&model3=&tip3=&cenaMin=0&cenaMax=999999&letnikMin=0&letnikMax=2090&bencin=0&starost2=999&oblika=0&ccmMin=0&ccmMax=99999&mocMin=0&mocMax=999999&kmMin=0&kmMax=9999999&kwMin=0&kwMax=999999&motortakt=0&motorvalji=0&lokacija=0&sirina=0&dolzina=&dolzinaMIN=0&dolzinaMAX=100&nosilnostMIN=0&nosilnostMAX=999999&sedezevMIN=0&sedezevMAX=9&lezisc=&presek=0&premer=0&col=0&vijakov=0&EToznaka=0&vozilo=0&airbag=&barva=&barvaint=&doseg=0&BkType=0&BkOkvir=0&BkOkvirType=0&Bk4=0&EQ1=1000000000&EQ2=1000000000&EQ3=1000000000&EQ4=100000000&EQ5=1000000000&EQ6=1000001000&EQ7=1110100122&EQ8=101000000&EQ9=1000000020&EQ10=100000000&KAT=1100000000&PIA=&PIAzero=&PIAOut=&PSLO=&akcija=0&paketgarancije=&broker=',
+  car: 'https://www.avto.net/Ads/results.asp?KAT=1010000000&arhiv=0&broker=',
+  dostavna: 'https://www.avto.net/Ads/results.asp?KAT=1020000000&arhiv=0&broker=',
+  platisca: 'https://www.avto.net/Ads/results.asp?KAT=1100000000&arhiv=0&broker=',
 };
 
 export const newAdUrl = (adType: AdType): string => {

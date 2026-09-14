@@ -70,85 +70,6 @@ function randomRegistrationYear(original: string): string {
   return String(Math.max(1900, year - 1));
 }
 
-/** VIN characters. I, O and Q are excluded so they cannot be read as 1 and 0. */
-const VIN_ALPHABET = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
-
-/** ISO 3779 letter values, used only to compute the check digit. */
-const VIN_LETTER_VALUES: Record<string, number> = {
-  A: 1,
-  B: 2,
-  C: 3,
-  D: 4,
-  E: 5,
-  F: 6,
-  G: 7,
-  H: 8,
-  J: 1,
-  K: 2,
-  L: 3,
-  M: 4,
-  N: 5,
-  P: 7,
-  R: 9,
-  S: 2,
-  T: 3,
-  U: 4,
-  V: 5,
-  W: 6,
-  X: 7,
-  Y: 8,
-  Z: 9,
-};
-
-const VIN_WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
-
-const randomVinChar = (): string => VIN_ALPHABET[Math.floor(Math.random() * VIN_ALPHABET.length)];
-
-/**
- * The ISO 3779 check digit for a 17-character VIN.
- *
- * Position 9 carries weight 0, so whatever currently sits there does not
- * affect the result and the candidate can be passed in unmodified.
- */
-function vinCheckDigit(vin: string): string {
-  let sum = 0;
-  for (let i = 0; i < 17; i += 1) {
-    const char = vin[i];
-    const value = /\d/.test(char) ? Number(char) : VIN_LETTER_VALUES[char];
-    if (value === undefined) return '0';
-    sum += value * VIN_WEIGHTS[i];
-  }
-  const remainder = sum % 11;
-  return remainder === 10 ? 'X' : String(remainder);
-}
-
-/**
- * A different VIN for the ad we are about to delete.
- *
- * The VIN is the one field on a car that is unique by definition, so leaving
- * it untouched left the archived copy and its replacement sharing an exact
- * key. Unchecking "objavi VIN" only hides it from the public page; the value
- * stays in avto.net's database, which is where the matching happens.
- *
- * The first three characters (the manufacturer's WMI) are kept and the check
- * digit is recomputed, so the result is still a well-formed VIN for the same
- * make. A malformed one risks the form rejecting the whole submission — which
- * findUnsavedFields would catch, but as a blocked renewal rather than a fix.
- */
-function randomVin(original: string): string {
-  const clean = original.trim().toUpperCase();
-  if (clean.length !== 17) {
-    return Array.from({ length: clean.length || 17 }, randomVinChar).join('');
-  }
-
-  const wmi = /^[A-HJ-NPR-Z0-9]{3}$/.test(clean.slice(0, 3))
-    ? clean.slice(0, 3)
-    : Array.from({ length: 3 }, randomVinChar).join('');
-
-  const candidate = wmi + Array.from({ length: 14 }, randomVinChar).join('');
-  return `${candidate.slice(0, 8)}${vinCheckDigit(candidate)}${candidate.slice(9)}`;
-}
-
 /**
  * A mileage that still reads as this car's, but far enough off to stop the two
  * ads matching on brand + model + year + km.
@@ -264,8 +185,8 @@ interface EditMutation {
   newPrice: string | null;
   newYear: string | null;
   newKm: string | null;
-  /** Replacement VIN; null when the ad has no VIN to replace. */
-  newVin: string | null;
+  /** Whether the old ad carries a VIN that needs emptying. */
+  clearVin: boolean;
   /** Replaces the description outright; null when the ad has no description. */
   archiveNote: string | null;
   /** Token that has to show up in the saved description. */
@@ -310,13 +231,17 @@ const applyEditMutation = async (page: Page, mutation: EditMutation): Promise<Ex
     });
   }
 
-  if (mutation.newVin !== null) {
-    console.log('[getCarData] Replacing the VIN on the old ad');
-    await humanReplace(page, VIN_SELECTOR, mutation.newVin);
+  // Emptied rather than replaced. A generated VIN is still a VIN: it sits in
+  // avto.net's database looking like a real car, and it is one the ad's own
+  // photos contradict. An empty field leaves nothing for the duplicate check
+  // to key on and nothing false on record.
+  if (mutation.clearVin) {
+    console.log('[getCarData] Clearing the VIN on the old ad');
+    await humanReplace(page, VIN_SELECTOR, '');
     expectations.push({
       label: 'VIN',
       selector: VIN_SELECTOR,
-      expected: mutation.newVin,
+      expected: '',
       optional: true,
     });
   }
@@ -392,7 +317,10 @@ const findUnsavedFields = async (
       // Descriptions run to thousands of characters and this string ends up in
       // a dialog, so show only enough of the value to recognise it.
       const shown = actual === null ? '—' : actual.length > 60 ? `${actual.slice(0, 60)}…` : actual;
-      mismatches.push(`${label} (pričakovano "${expected}", na strani "${shown}")`);
+      // The VIN is cleared rather than rewritten, and `pričakovano ""` reads
+      // like a bug in the message rather than an empty field.
+      const wanted = expected === '' ? 'prazno' : `"${expected}"`;
+      mismatches.push(`${label} (pričakovano ${wanted}, na strani "${shown}")`);
     }
   }
 
@@ -541,7 +469,7 @@ export const getCarData = async (
         : null,
       newYear: letoRegValue ? randomRegistrationYear(letoRegValue) : null,
       newKm: kmValue ? randomMileage(kmValue) : null,
-      newVin: vinValue ? randomVin(vinValue) : null,
+      clearVin: vinValue !== undefined,
       archiveNote: archiveMarker === null ? null : buildArchiveNote(adId, carData, archiveMarker),
       archiveMarker,
     });
