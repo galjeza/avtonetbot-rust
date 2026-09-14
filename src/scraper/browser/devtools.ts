@@ -1,5 +1,7 @@
 import http from 'node:http';
 
+import { waitMs } from '../utils/wait';
+
 export const DEBUG_PORT = 9222;
 const POLL_INTERVAL_MS = 250;
 
@@ -24,7 +26,7 @@ export async function waitForDebugPort(timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await isPortOpen()) return true;
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await waitMs(POLL_INTERVAL_MS);
   }
   return false;
 }
@@ -33,7 +35,7 @@ export async function waitForDebugPort(timeoutMs: number): Promise<boolean> {
 export async function waitForPortClosed(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline && (await isPortOpen())) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await waitMs(POLL_INTERVAL_MS);
   }
 }
 

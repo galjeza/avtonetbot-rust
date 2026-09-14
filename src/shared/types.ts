@@ -44,18 +44,21 @@ export interface UserData {
   hdImages?: boolean;
 }
 
-/** What the licence server returns for GET /user?email=… */
-export interface UserMeta {
-  /**
-   * Leaves the bot's Chrome on screen for a minute after a session check
-   * instead of closing it, so someone helping the user can see the page the
-   * check actually landed on.
-   */
-  keepBrowserOpen?: boolean;
-  brokerId?: string;
-  subscriptionPaidTo?: string;
-  hdImages?: boolean;
-}
+/**
+ * A user with nothing configured yet.
+ *
+ * Every partial update starts from whatever is stored, and that is undefined
+ * until the first save — so this is what "whatever is stored" falls back to.
+ */
+export const EMPTY_USER_DATA: UserData = { email: '', password: '' };
+
+/**
+ * What the licence server returns for GET /user?email=…
+ *
+ * Derived from UserData rather than restated, so a field cannot end up with
+ * two different meanings on the two sides of the same save.
+ */
+export type UserMeta = Pick<UserData, 'brokerId' | 'subscriptionPaidTo' | 'hdImages'>;
 
 /** Progress pushed from the main process while a batch runs. */
 export interface RenewProgress {
@@ -72,7 +75,6 @@ export interface RenewProgress {
 export interface BrowserStatus {
   loggedIn: boolean;
   finalUrl: string;
-  profileSeeded: boolean;
   /**
    * The Chrome profile directory our copy was taken from, or null while the
    * user has not picked one — which is the state every install starts in,
@@ -106,7 +108,6 @@ export interface AdImageSet {
   photoCount: number;
   /** Newest file modification time in the set, ms since the epoch. */
   updatedAt: number;
-  adType?: AdType;
 }
 
 /** One photo within a set. */
@@ -115,7 +116,6 @@ export interface AdPhoto {
   file: string;
   /** adimg:// URL to render it, carrying a cache-buster so edits show up. */
   url: string;
-  bytes: number;
 }
 
 export interface OpenFolderResult {

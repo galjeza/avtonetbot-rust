@@ -10,7 +10,6 @@ import {
   User,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
 
 import { ChromeProfilePicker } from '@/components/chrome-profile-picker';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -26,8 +25,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatDate, useAccount } from '@/lib/account';
-import { useBrowser } from '@/lib/browser';
+import { useAccount } from '@/lib/account';
+import { describeBrowserActivity, useBrowser } from '@/lib/browser';
+import { formatDate } from '@/lib/format';
 import { useReadiness } from '@/lib/readiness';
 import { useUpdate } from '@/lib/updates';
 
@@ -46,16 +46,6 @@ export default function Pregled(): JSX.Element {
   const { status, checking, error, check, selecting, signIn, awaitingLogin } = useBrowser();
   const { checks, ready } = useReadiness();
   const { updateAvailable, checking: checkingUpdate, version } = useUpdate();
-
-  const runCheck = async (reseed: boolean): Promise<void> => {
-    await check(reseed);
-    toast.dismiss();
-  };
-
-  const runSignIn = async (): Promise<void> => {
-    await signIn();
-    toast.dismiss();
-  };
 
   if (loading) {
     return (
@@ -86,6 +76,7 @@ export default function Pregled(): JSX.Element {
   }
 
   const failing = checks.filter((c) => !c.ok);
+  const activity = describeBrowserActivity({ checking, awaitingLogin, selecting });
 
   return (
     <div className="flex flex-col gap-6">
@@ -161,14 +152,10 @@ export default function Pregled(): JSX.Element {
             </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {checking ? (
+            {activity ? (
               <span className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 className="size-4 animate-spin" />
-                {awaitingLogin
-                  ? 'V odprtem oknu se prijavite v avto.net. Okno se zapre samo.'
-                  : selecting
-                    ? 'Kopiramo profil in preverjamo sejo.'
-                    : 'Odpiramo Chrome, da preverimo sejo.'}
+                {activity}
               </span>
             ) : status?.loggedIn ? (
               <Verified />
@@ -188,21 +175,21 @@ export default function Pregled(): JSX.Element {
             <ChromeProfilePicker className="pt-1" />
           </CardContent>
           <CardFooter className="flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => runCheck(false)} disabled={checking}>
+            <Button variant="outline" size="sm" onClick={() => check(false)} disabled={checking}>
               <RefreshCw className={checking ? 'animate-spin' : undefined} />
               Preveri
             </Button>
             {/* On current Windows Chrome the copied profile arrives signed out
                 whatever we do, so signing in by hand is the normal way through
                 rather than a last resort. */}
-            <Button variant="outline" size="sm" onClick={runSignIn} disabled={checking}>
+            <Button variant="outline" size="sm" onClick={() => signIn()} disabled={checking}>
               <LogIn />
               Prijavi se
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => runCheck(true)}
+              onClick={() => check(true)}
               disabled={checking || !status?.profileDir}
             >
               Osveži profil

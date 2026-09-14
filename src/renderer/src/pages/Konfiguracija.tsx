@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
-import type { UserData } from '@shared/types';
 import { ChromeProfilePicker } from '@/components/chrome-profile-picker';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -16,11 +15,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAccount } from '@/lib/account';
-import { useBrowser } from '@/lib/browser';
+import { describeBrowserActivity, useBrowser } from '@/lib/browser';
 
 export default function Konfiguracija(): JSX.Element {
-  const { user, save } = useAccount();
-  const { status, checking, signIn, awaitingLogin } = useBrowser();
+  const { user, patch } = useAccount();
+  const { status, checking, selecting, signIn, awaitingLogin } = useBrowser();
   const keepBrowserOpen = user?.keepBrowserOpen ?? false;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,10 +42,9 @@ export default function Konfiguracija(): JSX.Element {
 
     setSaving(true);
     try {
-      // brokerId and subscription come from the licence server, so keep
-      // whatever is already stored rather than clearing it here.
-      const existing: UserData = user ?? { email: '', password: '' };
-      await save({ ...existing, email: trimmed, password, chromePath });
+      // brokerId and subscription come from the licence server, so patch
+      // rather than replace: they are not this form's to clear.
+      await patch({ email: trimmed, password, chromePath });
       toast.success('Nastavitve shranjene.');
     } catch (e) {
       toast.error('Nastavitev ni bilo mogoče shraniti.', {
@@ -128,15 +126,12 @@ export default function Konfiguracija(): JSX.Element {
         <CardContent className="flex flex-col gap-3">
           <ChromeProfilePicker />
           <p className="text-muted-foreground text-xs">
-            {awaitingLogin
-              ? 'V odprtem oknu se prijavite v avto.net. Okno se zapre samo.'
-              : checking
-                ? 'Kopiram profil in preverjam sejo…'
-                : !status?.profileDir
-                  ? 'Profil še ni izbran, zato prijave še nismo prekopirali.'
-                  : status.loggedIn
-                    ? 'Izbrani profil je prijavljen v avto.net.'
-                    : 'Izbrani profil ni prijavljen v avto.net. Prijavite se vanj v Chromu ali izberite drugega.'}
+            {describeBrowserActivity({ checking, awaitingLogin, selecting }) ??
+              (!status?.profileDir
+                ? 'Profil še ni izbran, zato prijave še nismo prekopirali.'
+                : status.loggedIn
+                  ? 'Izbrani profil je prijavljen v avto.net.'
+                  : 'Izbrani profil ni prijavljen v avto.net. Prijavite se vanj v Chromu ali izberite drugega.')}
           </p>
 
           {status?.finalUrl && !status.loggedIn && (
@@ -148,12 +143,7 @@ export default function Konfiguracija(): JSX.Element {
           <label className="flex items-start gap-2 text-sm">
             <Checkbox
               checked={keepBrowserOpen}
-              onCheckedChange={(checked) =>
-                save({
-                  ...(user ?? { email: '', password: '' }),
-                  keepBrowserOpen: checked === true,
-                })
-              }
+              onCheckedChange={(checked) => patch({ keepBrowserOpen: checked === true })}
               className="mt-0.5"
             />
             <span>

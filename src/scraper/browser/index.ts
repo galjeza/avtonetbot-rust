@@ -3,10 +3,11 @@ import { spawn } from 'node:child_process';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 
 import type { BrowserStatus } from '@shared/types';
-import { getUserData, setUserData } from '../../main/store';
+import { getUserData, updateUserData } from '../../main/store';
 import { DEFAULT_TIMEOUT_MS, LOGIN_URL, LOGIN_SUCCESS_URL } from '../constants';
+import { waitMs } from '../utils/wait';
 import { resolveChromePath } from './chrome-path';
-import { listChromeProfiles } from './chrome-profiles';
+import { findChromeProfile, listChromeProfiles } from './chrome-profiles';
 import {
   DEBUG_PORT,
   fetchBrowserWSEndpoint,
@@ -99,9 +100,6 @@ export interface BrowserSession {
    * Pass false to leave the tab open too, for when the user is using it.
    */
   release: (closePage?: boolean) => Promise<void>;
-  profileSeeded: boolean;
-  /** True when this call started Chrome, rather than attaching to a running one. */
-  launched: boolean;
 }
 
 export async function setupBrowser(): Promise<BrowserSession> {
@@ -110,7 +108,7 @@ export async function setupBrowser(): Promise<BrowserSession> {
     throw new Error('Google Chrome ni najden. Namestite Chrome ali nastavite pot v konfiguraciji.');
   }
 
-  const profileSeeded = ensureBotProfile();
+  ensureBotProfile();
 
   const launched = await (launching ??= launchIfNeeded(chromePath).finally(() => {
     launching = null;
@@ -146,7 +144,7 @@ export async function setupBrowser(): Promise<BrowserSession> {
     }
   };
 
-  return { browser, page, release, profileSeeded, launched };
+  return { browser, page, release };
 }
 
 /**
@@ -208,11 +206,11 @@ export async function reseedBotProfile(): Promise<void> {
  * still signed in — and a wrong guess is invisible until a renewal fails.
  */
 export async function selectChromeProfile(profileDir: string): Promise<void> {
-  const known = listChromeProfiles().some((profile) => profile.dir === profileDir);
-  if (!known) throw new Error(`Chromov profil "${profileDir}" ne obstaja.`);
+  if (!findChromeProfile(profileDir)) {
+    throw new Error(`Chromov profil "${profileDir}" ne obstaja.`);
+  }
 
-  const userData = getUserData() ?? { email: '', password: '' };
-  setUserData({ ...userData, chromeProfileDir: profileDir });
+  updateUserData({ chromeProfileDir: profileDir });
   await reseedBotProfile();
 }
 
@@ -261,7 +259,7 @@ async function waitForManualLogin(browser: Browser): Promise<boolean> {
       }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, MANUAL_LOGIN_POLL_MS));
+    await waitMs(MANUAL_LOGIN_POLL_MS);
   }
 
   return false;
@@ -295,7 +293,6 @@ export async function signInManually(): Promise<BrowserStatus> {
       // Reporting the destination we matched rather than re-reading the tab,
       // which the user may have closed the moment they were done.
       finalUrl: signedIn ? LOGIN_SUCCESS_URL : '',
-      profileSeeded: session.profileSeeded,
       profileDir: seededProfileDir(),
     };
   } finally {
@@ -322,18 +319,13 @@ export async function checkBrowserSession(): Promise<BrowserStatus> {
   // starting Chrome on an empty one would only report a signed-out session
   // that says nothing about what is actually needed.
   if (!chosenProfileDir()) {
-    return { loggedIn: false, finalUrl: '', profileSeeded: false, profileDir: null };
+    return { loggedIn: false, finalUrl: '', profileDir: null };
   }
 
   const session = await setupBrowser();
   try {
     const { loggedIn, finalUrl } = await isLoggedIn(session.page);
-    return {
-      loggedIn,
-      finalUrl,
-      profileSeeded: session.profileSeeded,
-      profileDir: seededProfileDir(),
-    };
+    return { loggedIn, finalUrl, profileDir: seededProfileDir() };
   } finally {
     await finishInspection(session);
   }

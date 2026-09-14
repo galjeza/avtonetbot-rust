@@ -6,11 +6,7 @@ import type { AdImageSet } from '@shared/types';
 import { AdPhotoEditor } from '@/components/ad-photo-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
-const formatDate = (ms: number): string =>
-  ms
-    ? new Date(ms).toLocaleDateString('sl-SI', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '';
+import { formatDate } from '@/lib/format';
 
 /** One row: what the ad is, how many photos it has, and the way into them. */
 function AdImageRow({ set, onEdit }: { set: AdImageSet; onEdit: () => void }): JSX.Element {

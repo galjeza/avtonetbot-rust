@@ -21,10 +21,8 @@ import type {
 export interface Api {
   platform: string;
 
-  store: {
-    get(key: string): unknown;
-    set(key: string, value: unknown): boolean;
-  };
+  /** Everything stored about the user, or undefined before the first save. */
+  getUserData(): Promise<UserData | undefined>;
 
   getAds(): Promise<ActiveAd[]>;
   renewAds(ads: ActiveAd[], pause: number, testMode: boolean): Promise<string>;

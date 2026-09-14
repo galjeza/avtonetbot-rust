@@ -41,13 +41,17 @@ Aliases: `@shared/*` everywhere, `@/*` only in the renderer.
 
 ### Main process
 
-`src/main/index.ts` is the whole IPC surface plus the batch loop
-(`handleRenewAds`): it iterates ads, pushes `RenewProgress` events on
-`renew-progress`, sleeps `pause` minutes between ads, and closes the browser in
-a `finally`. `src/main/store.ts` wraps electron-store — the store name and
-`userData` key are inherited from the previous app version and must not change.
-`src/main/ad-images.ts` owns the saved-photo library and the `adimg://` protocol
-handler (registered as privileged before `app.whenReady`).
+`src/main/index.ts` is app lifecycle and the window only. `ipc.ts` holds every
+channel (`registerIpc` takes a window *getter*, since handlers outlive any one
+window). `renew-batch.ts` has the batch loop: it iterates ads, pushes
+`RenewProgress` on `renew-progress`, pauses between ads, and closes the browser
+in a `finally`. One failed ad stops the batch by design.
+
+`store.ts` wraps electron-store — the store name and `userData` key are
+inherited from the previous app version and must not change; use
+`updateUserData(patch)` rather than spreading over an empty user.
+`ad-images.ts` owns the saved-photo library and the `adimg://` protocol handler
+(registered as privileged before `app.whenReady`).
 
 ### Scraper (`src/scraper/`, bundled into main, imports `electron`)
 
@@ -91,7 +95,17 @@ disambiguated as `opombeznamka|BMW`). Use the helpers in `utils/car-fields.ts`.
 Photos are cached under `<userData>/AdImages/<hash>` so the next renewal reuses
 them. `utils/ad-images.ts` computes the directory name under four historical
 naming schemes and prefers whichever already exists on disk — do not "clean
-this up" without migrating users' existing directories.
+this up" without migrating users' existing directories, since a name that stops
+resolving orphans photos the user may have edited by hand.
+
+Each set carries an `ad.json` written on every renewal, and `ad-images-migration.ts`
+backfills it at startup for sets saved by older versions. That file's directory-name
+parser is the only remaining reader of the legacy naming, so once installs have
+run the backfill for a release or two it can be deleted outright.
+
+`photoFiles()` in `utils/ad-images.ts` defines the publish order (numeric, so
+2.jpg precedes 10.jpg). Both the upload step and the photo editor depend on it —
+position *is* the file name — so it lives in one place.
 
 ### Anti-detection
 

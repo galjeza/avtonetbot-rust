@@ -94,6 +94,10 @@ export const renewAd = async ({
     console.log('[RenewAd] Done', { adId: ad.adId, adType });
     return adType;
   } finally {
+    // release, not endSession: a batch renews one ad after another and the
+    // next one attaches to this same Chrome. Ending the session here would
+    // shut it down and pay for a fresh launch every ad. The batch closes it
+    // once at the end.
     await release().catch(() => undefined);
   }
 };

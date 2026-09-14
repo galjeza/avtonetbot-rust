@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { UserData, UserMeta } from '@shared/types';
+import { EMPTY_USER_DATA, type UserData, type UserMeta } from '@shared/types';
 
 import { USER_API } from '../config';
 
@@ -22,6 +22,8 @@ interface AccountValue {
   subscription: Subscription;
   loading: boolean;
   save: (user: UserData) => Promise<void>;
+  /** Changes some of what is stored and leaves the rest alone. */
+  patch: (changes: Partial<UserData>) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -54,7 +56,7 @@ export function AccountProvider({ children }: { children: ReactNode }): JSX.Elem
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async (): Promise<void> => {
-    const stored = window.api.store.get('userData') as UserData | undefined;
+    const stored = await window.api.getUserData();
     if (!stored?.email) {
       setUser(stored ?? null);
       setLoading(false);
@@ -83,13 +85,19 @@ export function AccountProvider({ children }: { children: ReactNode }): JSX.Elem
     [refresh],
   );
 
+  const patch = useCallback(
+    (changes: Partial<UserData>): Promise<void> =>
+      save({ ...(user ?? EMPTY_USER_DATA), ...changes }),
+    [save, user],
+  );
+
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const value = useMemo<AccountValue>(
-    () => ({ user, subscription: readSubscription(user), loading, save, refresh }),
-    [user, loading, save, refresh],
+    () => ({ user, subscription: readSubscription(user), loading, save, patch, refresh }),
+    [user, loading, save, patch, refresh],
   );
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
@@ -100,6 +108,3 @@ export function useAccount(): AccountValue {
   if (!ctx) throw new Error('useAccount must be used inside AccountProvider');
   return ctx;
 }
-
-export const formatDate = (date: Date): string =>
-  date.toLocaleDateString('sl-SI', { day: 'numeric', month: 'long', year: 'numeric' });

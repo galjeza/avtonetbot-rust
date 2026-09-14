@@ -135,7 +135,27 @@ export function listChromeProfiles(userDataDir = detectUserProfileDir()): Chrome
  * Returns null when it is gone — a profile the user picked can be deleted in
  * Chrome afterwards, and copying from a directory that no longer exists would
  * produce an empty seed rather than an error.
+ *
+ * Deliberately not `listChromeProfiles().find(…)`. That reads every profile's
+ * cookie database into memory to answer a question this does not ask, and it
+ * is called on the path that then copies a profile — so picking one used to
+ * scan the lot twice.
  */
-export function findChromeProfile(profileDir: string): ChromeProfileInfo | null {
-  return listChromeProfiles().find((profile) => profile.dir === profileDir) ?? null;
+export function findChromeProfile(
+  profileDir: string,
+  userDataDir = detectUserProfileDir(),
+): ChromeProfileInfo | null {
+  const dir = path.join(userDataDir, profileDir);
+  if (IGNORED_PROFILE_DIRS.has(profileDir) || !fs.existsSync(path.join(dir, 'Preferences'))) {
+    return null;
+  }
+
+  const info = readInfoCache(userDataDir)[profileDir];
+  return {
+    dir: profileDir,
+    name: info?.name || profileDir,
+    accountEmail: info?.user_name || undefined,
+    lastActive: info?.active_time ? Math.round(info.active_time * 1000) : undefined,
+    hasAvtonetCookies: hasAvtonetCookies(dir),
+  };
 }

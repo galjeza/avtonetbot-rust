@@ -596,10 +596,21 @@ export const getCarData = async (
   writeAdImagesMetadata(adImagesDirectory, {
     adId,
     adType,
-    brand: fieldValue(carData, 'znamkavozila'),
+    // Wheels carry their make in "znamka"; vehicles in "znamkavozila".
+    brand: fieldValue(carData, 'znamkavozila') ?? fieldValue(carData, 'znamka'),
     model: fieldValue(carData, 'modelvozila'),
     year: fieldValue(carData, 'letoReg'),
     km: fieldValue(carData, 'prevozenikm'),
+    wheel:
+      adType === 'platisca'
+        ? {
+            width: fieldValue(carData, 'sirina'),
+            inches: fieldValue(carData, 'col'),
+            bolts: fieldValue(carData, 'vijakov'),
+            boltCircle: fieldValue(carData, 'premer'),
+            offset: fieldValue(carData, 'ET'),
+          }
+        : undefined,
     savedAt: new Date().toISOString(),
   });
 

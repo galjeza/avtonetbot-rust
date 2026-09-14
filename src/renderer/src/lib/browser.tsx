@@ -114,6 +114,25 @@ export function BrowserProvider({ children }: { children: ReactNode }): JSX.Elem
   return <BrowserContext.Provider value={value}>{children}</BrowserContext.Provider>;
 }
 
+/**
+ * What the browser is doing right now, or null when it is not doing anything.
+ *
+ * Shared because the overview and the configuration page both report it and
+ * had drifted into two wordings of the same three states. What each page says
+ * about an *idle* browser still differs, and deliberately so — the overview
+ * has an error to show and a profile picker to point at.
+ */
+export function describeBrowserActivity({
+  checking,
+  awaitingLogin,
+  selecting,
+}: Pick<BrowserValue, 'checking' | 'awaitingLogin' | 'selecting'>): string | null {
+  if (awaitingLogin) return 'V odprtem oknu se prijavite v avto.net. Okno se zapre samo.';
+  if (!checking) return null;
+  if (selecting) return 'Kopiramo profil in preverjamo sejo.';
+  return 'Odpiramo Chrome, da preverimo sejo.';
+}
+
 export function useBrowser(): BrowserValue {
   const ctx = useContext(BrowserContext);
   if (!ctx) throw new Error('useBrowser must be used inside BrowserProvider');

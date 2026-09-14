@@ -55,7 +55,41 @@ export interface AdImagesMetadata {
   model?: string;
   year?: string;
   km?: string;
+  /** Dimensions instead of a year and a mileage, for wheels. */
+  wheel?: {
+    width?: string;
+    inches?: string;
+    bolts?: string;
+    boltCircle?: string;
+    offset?: string;
+  };
   savedAt?: string;
+}
+
+/** Only .jpg files are uploaded, so only they count as an ad's photos. */
+export const isPhoto = (file: string): boolean => file.toLowerCase().endsWith('.jpg');
+
+/**
+ * The order an ad publishes its photos in: by the leading number, so 2.jpg
+ * precedes 10.jpg.
+ *
+ * Position *is* the file name — the upload step walks the directory in this
+ * order and the photo editor rewrites the names to match — so both sides have
+ * to agree on it, which is why it is defined once here.
+ */
+export function photoFiles(setDir: string): string[] {
+  try {
+    return fs
+      .readdirSync(setDir)
+      .filter(isPhoto)
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/\d+/)?.[0] ?? '0', 10);
+        const numB = parseInt(b.match(/\d+/)?.[0] ?? '0', 10);
+        return numA - numB || a.localeCompare(b);
+      });
+  } catch {
+    return [];
+  }
 }
 
 export function writeAdImagesMetadata(setDir: string, metadata: AdImagesMetadata): void {

@@ -15,10 +15,7 @@ import type {
 const api = {
   platform: process.platform,
 
-  store: {
-    get: (key: string): unknown => ipcRenderer.sendSync('store-get', key),
-    set: (key: string, value: unknown): boolean => ipcRenderer.sendSync('store-set', key, value),
-  },
+  getUserData: (): Promise<UserData | undefined> => ipcRenderer.invoke('get-user-data'),
 
   getAds: (): Promise<ActiveAd[]> => ipcRenderer.invoke('get-ads'),
 

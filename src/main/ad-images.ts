@@ -5,7 +5,12 @@ import { app, dialog, type BrowserWindow } from 'electron';
 import Jimp from 'jimp';
 
 import type { AdImageSet, AdPhoto } from '@shared/types';
-import { readAdImagesMetadata, type AdImagesMetadata } from '../scraper/utils/ad-images';
+import {
+  isPhoto,
+  photoFiles,
+  readAdImagesMetadata,
+  type AdImagesMetadata,
+} from '../scraper/utils/ad-images';
 
 /** The scheme the renderer loads saved photos through. */
 export const AD_IMAGE_SCHEME = 'adimg';
@@ -13,27 +18,6 @@ export const AD_IMAGE_SCHEME = 'adimg';
 /** Everything an ad's photos are stored under. */
 export function adImagesRoot(): string {
   return path.join(app.getPath('userData'), 'AdImages');
-}
-
-/** Only .jpg files are uploaded, so only they count as an ad's photos. */
-const isPhoto = (file: string): boolean => file.toLowerCase().endsWith('.jpg');
-
-/**
- * The order the ad is published in: by the leading number, so 2.jpg precedes
- * 10.jpg. Matches how the upload step reads the directory.
- */
-function naturalOrder(a: string, b: string): number {
-  const numA = parseInt(a.match(/\d+/)?.[0] ?? '0', 10);
-  const numB = parseInt(b.match(/\d+/)?.[0] ?? '0', 10);
-  return numA - numB || a.localeCompare(b);
-}
-
-function photoFiles(dir: string): string[] {
-  try {
-    return fs.readdirSync(dir).filter(isPhoto).sort(naturalOrder);
-  } catch {
-    return [];
-  }
 }
 
 /** Refuses anything that is not a direct child directory of the root. */
@@ -44,60 +28,6 @@ function resolveSetDir(dir: string): string {
     throw new Error(`Neveljavna mapa slik: ${dir}`);
   }
   return target;
-}
-
-/**
- * Field names the current directory-naming scheme writes into the directory,
- * lowercased the way the name itself is.
- *
- * Only this scheme is read. Older ones exist on disk from previous versions
- * and are still honoured when photos are looked up for an upload, but they are
- * not worth parsing here: anything downloaded from now on carries metadata,
- * and a set we cannot name still lists and edits perfectly well.
- */
-const VEHICLE_KEYS = ['znamkavozila', 'modelvozila', 'prevozenikm', 'letoreg'];
-const WHEEL_KEYS = ['znamka', 'sirina', 'col', 'vijakov', 'premer', 'et'];
-
-/**
- * Splits a directory name back into the fields it was built from.
- *
- * The name is `key + value` repeated with no separator, so a value is whatever
- * sits between one key and the next. Which keys appear in which order follows
- * the order the ad's form was scraped in, not the order they are listed here,
- * so the keys are located wherever they happen to fall rather than expected in
- * sequence — insisting on an order is what made this give up and fall back to
- * showing the raw directory name.
- */
-function parseDirName(dir: string): Record<string, string> | null {
-  const wheels = !dir.includes('znamkavozila') && !dir.includes('modelvozila');
-  const keys = wheels ? WHEEL_KEYS : VEHICLE_KEYS;
-
-  // Longest first: alternation takes the first branch that matches, and
-  // without this "znamkavozila" would be read as "znamka" followed by a value
-  // beginning "vozila".
-  const pattern = new RegExp([...keys].sort((a, b) => b.length - a.length).join('|'), 'g');
-
-  const hits: { key: string; at: number; after: number }[] = [];
-  for (const match of dir.matchAll(pattern)) {
-    const at = match.index;
-    if (at === undefined) continue;
-    // A key this short can occur inside a value — "et" sits in the middle of a
-    // make like "borbet" — so it only counts where a numeric value just ended.
-    // Longer keys are distinctive enough to take wherever they fall.
-    if (match[0].length <= 2 && at > 0 && !/\d/.test(dir[at - 1])) continue;
-    // A key that somehow appears twice belongs to its first position.
-    if (hits.some((hit) => hit.key === match[0])) continue;
-    hits.push({ key: match[0], at, after: at + match[0].length });
-  }
-
-  if (hits.length === 0) return null;
-
-  const parsed: Record<string, string> = {};
-  hits.forEach((hit, index) => {
-    const end = index + 1 < hits.length ? hits[index + 1].at : dir.length;
-    parsed[hit.key] = dir.slice(hit.after, end);
-  });
-  return parsed;
 }
 
 /**
@@ -120,38 +50,40 @@ const formatKm = (km: string): string =>
 const present = (values: (string | undefined)[]): string[] =>
   values.filter((value): value is string => Boolean(value));
 
-/** Heading and detail line for one set, from its metadata or from its name. */
+/**
+ * Heading and detail line for one set.
+ *
+ * Read from the metadata file beside the photos, which every set acquires
+ * either on download or through the startup backfill. A set with none left is
+ * one whose directory name predates the naming scheme the backfill can read,
+ * and there is nothing in it to recover — so the name itself is the label.
+ */
 function describe(
   dir: string,
   metadata: AdImagesMetadata | null,
 ): Pick<AdImageSet, 'title' | 'subtitle'> {
-  const vehicle = (
-    brand?: string,
-    model?: string,
-    year?: string,
-    km?: string,
-  ): Pick<AdImageSet, 'title' | 'subtitle'> => ({
-    title: present([brand, model]).map(prettify).join(' ') || dir,
-    subtitle: present([year && prettify(year), km && formatKm(km)]).join(' · '),
-  });
+  if (!metadata) return { title: dir, subtitle: '' };
 
-  if (metadata) return vehicle(metadata.brand, metadata.model, metadata.year, metadata.km);
-
-  const parsed = parseDirName(dir);
-  if (!parsed) return { title: dir, subtitle: '' };
-
-  if (parsed.znamkavozila || parsed.modelvozila) {
-    return vehicle(parsed.znamkavozila, parsed.modelvozila, parsed.letoreg, parsed.prevozenikm);
-  }
+  const title = present([metadata.brand, metadata.model]).map(prettify).join(' ') || dir;
 
   // Wheels are described by their dimensions rather than a year and a mileage.
-  const { znamka, sirina, col, vijakov, premer, et } = parsed;
+  if (metadata.wheel) {
+    const { width, inches, bolts, boltCircle, offset } = metadata.wheel;
+    return {
+      title,
+      subtitle: present([
+        width && inches && `${width} × ${inches}"`,
+        bolts && boltCircle && `${bolts}×${boltCircle}`,
+        offset && `ET${offset}`,
+      ]).join(' · '),
+    };
+  }
+
   return {
-    title: znamka ? prettify(znamka) : dir,
+    title,
     subtitle: present([
-      sirina && col && `${sirina} × ${col}"`,
-      vijakov && premer && `${vijakov}×${premer}`,
-      et && `ET${et}`,
+      metadata.year && prettify(metadata.year),
+      metadata.km && formatKm(metadata.km),
     ]).join(' · '),
   };
 }
@@ -187,7 +119,6 @@ export function listAdImageSets(): AdImageSet[] {
         ...describe(entry.name, metadata),
         photoCount: files.length,
         updatedAt,
-        adType: metadata?.adType,
       };
     })
     .filter((set) => set.photoCount > 0)
@@ -199,13 +130,12 @@ export function readAdImages(dir: string): AdPhoto[] {
   const setDir = resolveSetDir(dir);
 
   return photoFiles(setDir).map((file) => {
-    const stats = fs.statSync(path.join(setDir, file));
+    const { mtimeMs } = fs.statSync(path.join(setDir, file));
     return {
       file,
       // The modification time doubles as a cache-buster: a replaced photo
       // keeps its file name, and without this the old one stays on screen.
-      url: `${AD_IMAGE_SCHEME}://photos/${encodeURIComponent(dir)}/${encodeURIComponent(file)}?v=${Math.round(stats.mtimeMs)}`,
-      bytes: stats.size,
+      url: `${AD_IMAGE_SCHEME}://photos/${encodeURIComponent(dir)}/${encodeURIComponent(file)}?v=${Math.round(mtimeMs)}`,
     };
   });
 }

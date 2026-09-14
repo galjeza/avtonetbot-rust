@@ -13,7 +13,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { formatDate, useAccount } from '@/lib/account';
+import { useAccount } from '@/lib/account';
+import { formatDate } from '@/lib/format';
 import { useReadiness } from '@/lib/readiness';
 
 const NAV = [

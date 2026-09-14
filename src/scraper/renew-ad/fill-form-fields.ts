@@ -10,11 +10,6 @@ declare global {
 }
 
 /**
- * The description is a CKEditor field. Setting the underlying textarea alone
- * is not enough — the editor holds its own copy and overwrites it on submit —
- * so both are updated.
- */
-/**
  * Writes the description on whichever page is open.
  *
  * Setting the underlying textarea alone is not enough — CKEditor holds its own

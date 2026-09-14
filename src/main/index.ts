@@ -1,41 +1,11 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
-import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, protocol, shell } from 'electron';
 
-import type {
-  ActiveAd,
-  AdImageSet,
-  AdPhoto,
-  BrowserStatus,
-  ChromeProfileInfo,
-  OpenFolderResult,
-  RenewProgress,
-  UserData,
-} from '@shared/types';
-import {
-  checkBrowserSession,
-  closeBrowser,
-  listChromeProfiles,
-  reseedBotProfile,
-  selectChromeProfile,
-  signInManually,
-} from '../scraper/browser';
-import { fetchAllActiveAds } from '../scraper/get-active-ads';
-import { renewAd } from '../scraper/renew-ad';
-import {
-  AD_IMAGE_SCHEME,
-  addAdImages,
-  adImageSetPath,
-  adImagesRoot,
-  applyAdImageOrder,
-  handleAdImageRequest,
-  listAdImageSets,
-  readAdImages,
-  replaceAdImage,
-} from './ad-images';
-import { getUserData, setUserData, store } from './store';
-import { initUpdater, isUpdateAvailable } from './updater';
+import { AD_IMAGE_SCHEME, handleAdImageRequest } from './ad-images';
+import { backfillAdImagesMetadata } from './ad-images-migration';
+import { registerIpc } from './ipc';
+import { initUpdater } from './updater';
 
 const isDev = !app.isPackaged;
 
@@ -84,171 +54,10 @@ function createWindow(): void {
   }
 }
 
-async function handleRenewAds(
-  _event: Electron.IpcMainInvokeEvent,
-  ads: ActiveAd[],
-  pause: number,
-  testMode = false,
-): Promise<string> {
-  const userData = getUserData();
-  if (!userData) throw new Error('Konfiguracija ni nastavljena.');
-
-  const total = ads.length;
-  const report = (progress: RenewProgress): void => {
-    mainWindow?.webContents.send('renew-progress', progress);
-  };
-
-  try {
-    for (const [index, ad] of ads.entries()) {
-      try {
-        report({
-          index,
-          total,
-          adId: ad.adId,
-          step: 'začetek',
-          status: 'running',
-        });
-
-        await renewAd({
-          ad,
-          email: userData.email,
-          password: userData.password,
-          hdImages: userData.hdImages ?? false,
-          testMode,
-          onStep: (step, adType) =>
-            report({
-              index,
-              total,
-              adId: ad.adId,
-              step,
-              status: 'running',
-              adType,
-            }),
-        });
-
-        report({
-          index,
-          total,
-          adId: ad.adId,
-          step: 'končano',
-          status: 'done',
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        report({
-          index,
-          total,
-          adId: ad.adId,
-          step: 'napaka',
-          status: 'failed',
-          message,
-        });
-        throw error;
-      }
-
-      // Spacing renewals out is what keeps the batch from looking automated.
-      const isLast = index === total - 1;
-      if (!isLast && pause > 0) {
-        report({
-          index,
-          total,
-          adId: ad.adId,
-          step: `pavza ${pause} min`,
-          status: 'waiting',
-        });
-        await new Promise((resolve) => setTimeout(resolve, pause * 60 * 1000));
-      }
-    }
-
-    return 'renewed';
-  } finally {
-    // Nothing reuses the browser once the batch ends, successfully or not.
-    await closeBrowser().catch(() => undefined);
-  }
-}
-
 app.whenReady().then(() => {
   protocol.handle(AD_IMAGE_SCHEME, handleAdImageRequest);
-
-  ipcMain.on('store-get', (event, key: string) => {
-    event.returnValue = store.get(key as 'userData');
-  });
-
-  ipcMain.on('store-set', (event, key: string, value: unknown) => {
-    store.set(key, value);
-    event.returnValue = true;
-  });
-
-  ipcMain.handle('get-ads', async (): Promise<ActiveAd[]> => {
-    const userData = getUserData();
-    if (!userData?.brokerId) {
-      throw new Error('Manjka številka posrednika. Odprite konfiguracijo in shranite e-pošto.');
-    }
-    return fetchAllActiveAds(userData.brokerId);
-  });
-
-  ipcMain.handle('renew-ads', handleRenewAds);
-
-  ipcMain.handle('get-app-version', (): string => app.getVersion());
-
-  ipcMain.handle('check-update-status', (): boolean => isUpdateAvailable());
-
-  ipcMain.handle('check-browser-session', (): Promise<BrowserStatus> => checkBrowserSession());
-
-  ipcMain.handle('reseed-browser-profile', async (): Promise<BrowserStatus> => {
-    await reseedBotProfile();
-    return checkBrowserSession();
-  });
-
-  ipcMain.handle('sign-in-manually', (): Promise<BrowserStatus> => signInManually());
-
-  ipcMain.handle('list-chrome-profiles', (): ChromeProfileInfo[] => listChromeProfiles());
-
-  ipcMain.handle(
-    'select-chrome-profile',
-    async (_event, profileDir: string): Promise<BrowserStatus> => {
-      await selectChromeProfile(profileDir);
-      return checkBrowserSession();
-    },
-  );
-
-  ipcMain.handle('save-user-data', (_event, userData: UserData): boolean => {
-    setUserData(userData);
-    return true;
-  });
-
-  ipcMain.handle('open-ad-images-folder', async (): Promise<OpenFolderResult> => {
-    const adImagesPath = adImagesRoot();
-    if (!fs.existsSync(adImagesPath)) {
-      fs.mkdirSync(adImagesPath, { recursive: true });
-    }
-    const error = await shell.openPath(adImagesPath);
-    return error ? { ok: false, error } : { ok: true };
-  });
-
-  ipcMain.handle(
-    'open-ad-image-set-folder',
-    async (_event, dir: string): Promise<OpenFolderResult> => {
-      const error = await shell.openPath(adImageSetPath(dir));
-      return error ? { ok: false, error } : { ok: true };
-    },
-  );
-
-  ipcMain.handle('list-ad-image-sets', (): AdImageSet[] => listAdImageSets());
-
-  ipcMain.handle('read-ad-images', (_event, dir: string): AdPhoto[] => readAdImages(dir));
-
-  ipcMain.handle('apply-ad-image-order', (_event, dir: string, order: string[]): AdPhoto[] =>
-    applyAdImageOrder(dir, order),
-  );
-
-  ipcMain.handle('replace-ad-image', (_event, dir: string, file: string): Promise<AdPhoto[]> =>
-    replaceAdImage(mainWindow, dir, file),
-  );
-
-  ipcMain.handle('add-ad-images', (_event, dir: string): Promise<AdPhoto[]> =>
-    addAdImages(mainWindow, dir),
-  );
+  backfillAdImagesMetadata();
+  registerIpc(() => mainWindow);
 
   createWindow();
   if (!isDev) initUpdater();

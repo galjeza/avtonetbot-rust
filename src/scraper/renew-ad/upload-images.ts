@@ -6,7 +6,7 @@ import type { ElementHandle, Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
 import { SLOW_TIMEOUT_MS } from '../constants';
-import { getAdImagesDirectory } from '../utils/ad-images';
+import { getAdImagesDirectory, photoFiles } from '../utils/ad-images';
 import { jitteredWait } from '../utils/human';
 import type { CarField } from '../utils/car-fields';
 import { wait } from '../utils/wait';
@@ -68,16 +68,7 @@ export const uploadImages = async (
 
       const adImagesDirectory = getAdImagesDirectory(carData, userDataPath, adType);
 
-      const imageFiles = fs
-        .readdirSync(adImagesDirectory)
-        .filter((file) => file.toLowerCase().endsWith('.jpg'))
-        // Natural order, so 2.jpg precedes 10.jpg and the ad keeps its
-        // original photo sequence.
-        .sort((a, b) => {
-          const numA = parseInt(a.match(/\d+/)?.[0] ?? '0', 10);
-          const numB = parseInt(b.match(/\d+/)?.[0] ?? '0', 10);
-          return numA - numB;
-        });
+      const imageFiles = photoFiles(adImagesDirectory);
 
       if (imageFiles.length === 0) {
         throw new Error(
