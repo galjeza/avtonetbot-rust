@@ -5,9 +5,54 @@ import { wait } from '../utils/wait';
 
 declare global {
   interface Window {
-    CKEDITOR?: { instances?: Record<string, { setData: (html: string) => void }> };
+    CKEDITOR?: {
+      instances?: Record<string, { setData: (html: string) => void; getData: () => string }>;
+    };
   }
 }
+
+/** The description textarea, and the CKEditor instance bound to it, if any. */
+const OPIS_TEXTAREA_SELECTOR = '#editor1, textarea[name="opombe"]';
+
+/**
+ * CKEditor registers its instance under the textarea's id (or name) some time
+ * after the page's load event. Until it does, `setData` cannot be called and
+ * writing the textarea alone is pointless: the editor snapshots the textarea
+ * when it boots and writes its own copy back over it on submit.
+ *
+ * Waiting for the instance is what stops a description from being silently
+ * left at whatever avto.net pre-filled the form with — on a recreated ad that
+ * is the archived copy's text, which is exactly what must not be published.
+ */
+const waitForCkeditor = async (page: Page): Promise<void> => {
+  await page
+    .waitForFunction(
+      (selector: string) => {
+        const textarea = document.querySelector(selector) as HTMLTextAreaElement | null;
+        // No CKEditor on this form at all: a plain textarea is ready at once.
+        if (!textarea || !window.CKEDITOR) return true;
+        const key = textarea.id || textarea.name;
+        return Boolean(window.CKEDITOR.instances?.[key] ?? window.CKEDITOR.instances?.editor1);
+      },
+      { timeout: 30 * 1000 },
+      OPIS_TEXTAREA_SELECTOR,
+    )
+    .catch(() => {
+      console.warn('[setWysiwygOpis] CKEditor did not register in time, writing anyway');
+    });
+};
+
+/** Whatever the form would submit as the description right now. */
+export const readWysiwygOpis = async (page: Page): Promise<string | null> =>
+  page.evaluate((selector: string) => {
+    const textarea = document.querySelector(selector) as HTMLTextAreaElement | null;
+    if (!textarea) return null;
+
+    const key = textarea.id || textarea.name;
+    const editor = window.CKEDITOR?.instances?.[key] ?? window.CKEDITOR?.instances?.editor1;
+    // The editor's copy wins: it is what overwrites the textarea on submit.
+    return editor ? editor.getData() : textarea.value;
+  }, OPIS_TEXTAREA_SELECTOR);
 
 /**
  * Writes the description on whichever page is open.
@@ -16,20 +61,31 @@ declare global {
  * copy and overwrites it on submit — so both are updated.
  */
 export const setWysiwygOpis = async (page: Page, html: string): Promise<void> => {
-  await page.evaluate((value: string) => {
-    const textarea = (document.querySelector('#editor1') ??
-      document.querySelector('textarea[name="opombe"]')) as HTMLTextAreaElement | null;
+  await waitForCkeditor(page);
 
-    if (textarea) textarea.value = value;
+  await page.evaluate(
+    (value: string, selector: string) => {
+      const textarea = document.querySelector(selector) as HTMLTextAreaElement | null;
+      if (textarea) textarea.value = value;
 
-    const editor = window.CKEDITOR?.instances?.editor1;
-    if (editor) editor.setData(value);
-  }, html);
+      const key = textarea ? textarea.id || textarea.name : '';
+      const editor = window.CKEDITOR?.instances?.[key] ?? window.CKEDITOR?.instances?.editor1;
+      if (editor) editor.setData(value);
+    },
+    html,
+    OPIS_TEXTAREA_SELECTOR,
+  );
 
   await wait(2);
 };
 
-/** Reads the description out of scraped data and writes it to the open form. */
+/**
+ * Reads the description out of scraped data and writes it to the open form.
+ *
+ * The write is read back, because a no-op `setData` looks identical to a
+ * successful one from here: the ad still publishes, just with whatever text
+ * the form already held.
+ */
 export const fillWysiwygOpis = async (page: Page, carData: CarField[]): Promise<void> => {
   const htmlOpis = fieldValue(carData, 'htmlOpis') ?? fieldValue(carData, 'opombe');
   if (!htmlOpis) {
@@ -37,7 +93,35 @@ export const fillWysiwygOpis = async (page: Page, carData: CarField[]): Promise<
     return;
   }
 
-  await setWysiwygOpis(page, htmlOpis);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await setWysiwygOpis(page, htmlOpis);
+
+    const actual = await readWysiwygOpis(page).catch(() => null);
+    // CKEditor reformats the HTML it is given (attribute order, entities,
+    // whitespace), so the text content is the only thing worth comparing.
+    const strip = (value: string): string =>
+      value
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (actual !== null && strip(actual) === strip(htmlOpis)) {
+      console.log('[fillWysiwygOpis] Description written and verified', { attempt });
+      return;
+    }
+
+    console.warn('[fillWysiwygOpis] Description did not take, retrying', {
+      attempt,
+      actualPreview: actual === null ? null : strip(actual).slice(0, 120),
+      expectedPreview: strip(htmlOpis).slice(0, 120),
+    });
+    await wait(3);
+  }
+
+  // Not thrown: the old ad is already deleted by this point, so publishing the
+  // replacement with a stale description still beats abandoning it.
+  console.error('[fillWysiwygOpis] Giving up on verifying the description');
 };
 
 export const fillCheckboxesFromData = async (page: Page, carData: CarField[]): Promise<void> => {
@@ -51,10 +135,12 @@ export const fillCheckboxesFromData = async (page: Page, carData: CarField[]): P
     }));
 
     // Brand-compatibility boxes all share the name "opombeznamka" and are only
-    // distinguishable by value, so they are stored as "opombeznamka|BMW".
+    // distinguishable by value, so they are stored as "opombeznamka|BMW". That
+    // key is tried first: a bare "opombeznamka" entry can only be a leftover
+    // from a scrape that read the attribute value rather than the tick.
     const dataEntry =
-      field(carData, meta.name) ??
-      (meta.name === 'opombeznamka' ? field(carData, `opombeznamka|${meta.value}`) : undefined);
+      (meta.name === 'opombeznamka' ? field(carData, `opombeznamka|${meta.value}`) : undefined) ??
+      field(carData, meta.name);
 
     if (!dataEntry) continue;
 

@@ -486,7 +486,14 @@ export const getCarData = async (
     }),
   );
 
-  const inputs = await page.$$eval('input', (nodes) =>
+  // Checkboxes are excluded because they are already scraped above, as their
+  // *checked state*. A plain `input` scrape reads `value` instead, which for a
+  // checkbox is its static attribute ("1", or the brand name on opombeznamka)
+  // no matter whether the box is ticked — a second entry under the same name
+  // that says nothing about the ad. It shadowed the real one wherever the
+  // checkbox entry was stored under a different key (opombeznamka|BMW), which
+  // is how every brand-compatibility box ended up unticked on the new ad.
+  const inputs = await page.$$eval('input:not([type=checkbox])', (nodes) =>
     nodes.map((n) => ({
       name: (n as HTMLInputElement).name,
       value: (n as HTMLInputElement).value,
