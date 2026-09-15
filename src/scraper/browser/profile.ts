@@ -192,6 +192,30 @@ function verifySeed(dst: string, profileDir: string, failures: string[]): void {
 }
 
 /**
+ * Deletes the old copy before it is replaced.
+ *
+ * Windows fails the unlink with EPERM while any process still holds a handle
+ * on a file inside, and Chrome releases its handles a moment *after* it lets
+ * go of the debugging port — so a wipe that follows a shutdown can arrive too
+ * early, and one that follows a browser we never closed (a window left open
+ * for the user, a leftover chrome.exe from a previous run) fails outright.
+ * `maxRetries` covers the race; the message covers the rest, since the raw
+ * "EPERM: operation not permitted, unlink ..." surfaced verbatim in the UI and
+ * told the user nothing about closing Chrome.
+ */
+function removeBotProfile(dst: string): void {
+  try {
+    fs.rmSync(dst, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    throw new Error(
+      'Chromovega profila ni bilo mogoče zamenjati, ker ga še vedno uporablja odprt Chrome. ' +
+        'Zaprite vsa okna Chroma (po potrebi končajte chrome.exe v upravitelju opravil) ' +
+        'in poskusite znova.',
+    );
+  }
+}
+
+/**
  * Seeds our profile from the user's Chrome the first time.
  *
  * Chrome 136+ refuses --remote-debugging-port when the *default* profile
@@ -241,7 +265,7 @@ export function ensureBotProfile(force = false): boolean {
     );
   }
 
-  if (exists) fs.rmSync(dst, { recursive: true, force: true });
+  if (exists) removeBotProfile(dst);
   fs.mkdirSync(dst, { recursive: true });
 
   const failures: string[] = [];
