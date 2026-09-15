@@ -192,6 +192,41 @@ function verifySeed(dst: string, profileDir: string, failures: string[]): void {
 }
 
 /**
+ * Everything we can still learn about the entry the delete died on.
+ *
+ * Written for a screenshot from a user's machine, which is the only evidence
+ * we get: the first report of this failure said only "EPERM ... unlink" with
+ * the path cut off, and that was not enough to tell a running Chrome from a
+ * read-only file, an antivirus holding a handle, or a path too long for the
+ * call — all of which land on the same errno.
+ */
+function removalDetails(e: unknown, dst: string): string[] {
+  const err = e as NodeJS.ErrnoException;
+  const target = err?.path ?? dst;
+  const syscall = err?.syscall ? ` (${err.syscall})` : '';
+  const lines = [
+    `Datoteka: ${target}`,
+    `Napaka: ${err?.code ?? err?.message ?? 'neznana'}${syscall}`,
+  ];
+
+  try {
+    // Windows reports the read-only attribute as a missing write bit, and
+    // rmSync does not clear it — so this distinguishes a locked file from one
+    // we are simply not allowed to unlink.
+    const { mode } = fs.statSync(longPath(target));
+    if (!(mode & 0o200)) lines.push('Datoteka je samo za branje.');
+  } catch {
+    /* already gone, or we cannot stat it either — the errno above stands */
+  }
+
+  // Unlike every copy in this file, rmSync does not go through longPath(), so
+  // a copy that sits deeper than MAX_PATH is a live suspect worth ruling in.
+  if (target.length > 240) lines.push(`Dolžina poti: ${target.length} znakov.`);
+
+  return lines;
+}
+
+/**
  * Deletes the old copy before it is replaced.
  *
  * Windows fails the unlink with EPERM while any process still holds a handle
@@ -199,18 +234,26 @@ function verifySeed(dst: string, profileDir: string, failures: string[]): void {
  * go of the debugging port — so a wipe that follows a shutdown can arrive too
  * early, and one that follows a browser we never closed (a window left open
  * for the user, a leftover chrome.exe from a previous run) fails outright.
- * `maxRetries` covers the race; the message covers the rest, since the raw
- * "EPERM: operation not permitted, unlink ..." surfaced verbatim in the UI and
- * told the user nothing about closing Chrome.
+ * `maxRetries` covers that race.
+ *
+ * What it does not cover is everything else that holds a file on Windows, so
+ * the message carries the evidence rather than asserting a cause. `reason` is
+ * part of that: knowing the delete was attempted at all — and that it was a
+ * routine session check rather than the user asking for a refresh — is what
+ * the first report of this was missing.
  */
-function removeBotProfile(dst: string): void {
+function removeBotProfile(dst: string, reason: string): void {
   try {
     fs.rmSync(dst, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-  } catch {
+  } catch (e) {
     throw new Error(
-      'Chromovega profila ni bilo mogoče zamenjati, ker ga še vedno uporablja odprt Chrome. ' +
+      [
+        'Chromovega profila ni bilo mogoče zamenjati.',
+        `Razlog za osvežitev: ${reason}.`,
+        ...removalDetails(e, dst),
         'Zaprite vsa okna Chroma (po potrebi končajte chrome.exe v upravitelju opravil) ' +
-        'in poskusite znova.',
+          'in poskusite znova. Če se napaka ponovi, pošljite to sporočilo skrbniku.',
+      ].join('\n'),
     );
   }
 }
@@ -240,7 +283,8 @@ export function ensureBotProfile(force = false): boolean {
   const exists = fs.existsSync(dst);
   // A profile picked after the last copy has to take effect, so the choice is
   // not silently ignored until the user thinks to refresh by hand.
-  const stale = exists && seededProfileDir() !== chosen;
+  const seeded = exists ? seededProfileDir() : null;
+  const stale = exists && seeded !== chosen;
   if (exists && !force && !stale) return false;
 
   const src = detectUserProfileDir();
@@ -265,7 +309,14 @@ export function ensureBotProfile(force = false): boolean {
     );
   }
 
-  if (exists) removeBotProfile(dst);
+  if (exists) {
+    removeBotProfile(
+      dst,
+      force
+        ? 'ročna osvežitev profila'
+        : `kopija je iz profila "${seeded}", izbran pa je "${chosen}"`,
+    );
+  }
   fs.mkdirSync(dst, { recursive: true });
 
   const failures: string[] = [];
