@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// test
 import { app, ipcMain, shell, type BrowserWindow } from 'electron';
 
 import type {
