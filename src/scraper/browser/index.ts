@@ -72,6 +72,14 @@ async function launchIfNeeded(chromePath: string): Promise<boolean> {
       `--profile-directory=${seededProfileDir()}`,
       '--no-first-run',
       '--no-default-browser-check',
+      // A batch runs for hours while the user works in other windows. Chrome
+      // treats a covered or minimised window as hidden and throttles its
+      // timers to once a second, then once a minute, so an upload could still
+      // be in flight when a fixed wait ran out. These change scheduling only;
+      // nothing a page can read about the browser is altered.
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-background-timer-throttling',
       // Deliberately no --restore-last-session. The profile is a copy of the
       // user's, so restoring would reopen every window and tab they had open
       // when it was taken. The bot browser starts empty and we drive it.

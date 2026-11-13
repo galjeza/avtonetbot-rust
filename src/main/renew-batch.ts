@@ -1,4 +1,4 @@
-import type { BrowserWindow } from 'electron';
+import { powerSaveBlocker, type BrowserWindow } from 'electron';
 
 import type { ActiveAd, RenewProgress } from '@shared/types';
 import { closeBrowser } from '../scraper/browser';
@@ -26,6 +26,11 @@ export async function runRenewBatch(
 ): Promise<string> {
   const userData = getUserData();
   if (!userData) throw new Error('Konfiguracija ni nastavljena.');
+
+  // The pauses make a batch outlast the idle-sleep timer of an unattended PC,
+  // and a sleep that lands between the delete and the photo upload leaves an
+  // ad half-made. The screen may still turn off; only suspension is blocked.
+  const stayAwake = powerSaveBlocker.start('prevent-app-suspension');
 
   const total = ads.length;
   const report = (progress: RenewProgress): void => {
@@ -72,6 +77,7 @@ export async function runRenewBatch(
     return 'renewed';
   } finally {
     // Nothing reuses the browser once the batch ends, successfully or not.
+    powerSaveBlocker.stop(stayAwake);
     await closeBrowser().catch(() => undefined);
   }
 }
