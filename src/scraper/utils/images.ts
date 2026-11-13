@@ -8,20 +8,21 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36';
 
+/**
+ * Throws on any failure. It used to swallow them and leave no file, which let
+ * a renewal delete the ad and discover the missing photos only afterwards.
+ */
 export async function downloadImage(url: string, outputPath: string): Promise<void> {
-  try {
-    const response = await axios({
-      method: 'GET',
-      url,
-      responseType: 'arraybuffer',
-      timeout: DOWNLOAD_TIMEOUT_MS,
-      headers: { 'User-Agent': USER_AGENT },
-    });
-    fs.writeFileSync(outputPath, response.data);
-  } catch {
-    // Matches the previous behaviour: a failed download leaves no file and the
-    // upload step reports the shortfall rather than aborting the whole run.
-  }
+  const response = await axios<ArrayBuffer>({
+    method: 'GET',
+    url,
+    responseType: 'arraybuffer',
+    timeout: DOWNLOAD_TIMEOUT_MS,
+    headers: { 'User-Agent': USER_AGENT },
+  });
+  const data = Buffer.from(response.data);
+  if (data.length === 0) throw new Error('prazna datoteka');
+  fs.writeFileSync(outputPath, data);
 }
 
 /**

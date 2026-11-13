@@ -70,10 +70,11 @@ inherited from the previous app version and must not change; use
   detached".
 
 `renew-ad.ts` renews one ad, and the order is destructive and irreversible:
-scrape the edit form → `detectAdType` from the page heading → rewrite the *old*
-ad's identifying fields (price, registration year, mileage, VIN, description)
-and verify the save landed → download photos → **delete the original** →
-recreate it from the originally scraped values → re-upload photos.
+scrape the edit form → `detectAdType` from the page heading → download photos
+(all of them or the renewal stops, with the live ad still untouched) → rewrite
+the *old* ad's identifying fields (price, registration year, mileage, VIN,
+description) and verify the save landed → **delete the original** → recreate it
+from the originally scraped values → re-upload photos.
 
 That rewrite is what stops avto.net matching the new ad against the archived
 copy and offering to restore it instead of publishing. It belongs on the doomed
@@ -93,7 +94,10 @@ avto.net reuses field names (all brand-compat checkboxes are `opombeznamka`,
 disambiguated as `opombeznamka|BMW`). Use the helpers in `utils/car-fields.ts`.
 
 Photos are cached under `<userData>/AdImages/<hash>` so the next renewal reuses
-them. `utils/ad-images.ts` computes the directory name under four historical
+them. A set is downloaded into `<userData>/AdImagesStaging` and renamed into
+place only when complete, and an existing directory with no photos is deleted
+and re-downloaded — the directory existing is the only "already downloaded"
+signal, so it must never exist half-filled. `utils/ad-images.ts` computes the directory name under four historical
 naming schemes and prefers whichever already exists on disk — do not "clean
 this up" without migrating users' existing directories, since a name that stops
 resolving orphans photos the user may have edited by hand.

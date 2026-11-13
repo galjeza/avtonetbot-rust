@@ -6,7 +6,7 @@ import type { Page } from 'puppeteer-core';
 
 import type { AdType } from '@shared/types';
 import { AVTONET_EDIT_PREFIX, AVTONET_IMAGES_PREFIX, SLOW_TIMEOUT_MS } from '../constants';
-import { getAdImagesDirectory, writeAdImagesMetadata } from '../utils/ad-images';
+import { getAdImagesDirectory, photoFiles, writeAdImagesMetadata } from '../utils/ad-images';
 import { fieldValue, type CarField } from '../utils/car-fields';
 import { downloadImage, reduceSharpnessDesaturateAndBlurEdges } from '../utils/images';
 import { humanClick, humanReplace, jitteredWait } from '../utils/human';
@@ -157,6 +157,80 @@ function writeOriginalAdSnapshot(adId: string, adType: AdType, carData: CarField
   } catch (error) {
     // A missing snapshot must not stop a renewal that is otherwise fine.
     console.warn('[getCarData] Could not write the original-ad snapshot', error);
+  }
+}
+
+/**
+ * The ad's photo directory, discarding one that holds no photos.
+ *
+ * The directory existing is what says "already downloaded", so an empty one —
+ * left by a version that created it before downloading, or emptied in the
+ * photo editor — used to be trusted forever: every later renewal skipped the
+ * download, deleted the ad and only then found nothing to upload.
+ */
+function resolveAdImagesDirectory(
+  carData: CarField[],
+  userDataPath: string,
+  adType: AdType,
+): string {
+  // Bounded by the number of naming schemes: each pass removes one directory,
+  // and the lookup then falls through to the next scheme that exists.
+  for (let pass = 0; pass < 4; pass += 1) {
+    const dir = getAdImagesDirectory(carData, userDataPath, adType);
+    if (!fs.existsSync(dir) || photoFiles(dir).length > 0) return dir;
+
+    console.warn('[getCarData] Removing photo directory with no photos', { path: dir });
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  return getAdImagesDirectory(carData, userDataPath, adType);
+}
+
+/**
+ * Downloads every photo of the ad, or none of them.
+ *
+ * The set is built in a staging directory and moved into AdImages only once it
+ * is complete, so a failed or interrupted download can never leave a partial
+ * set behind for later renewals to publish. Any single failure throws: an ad
+ * recreated with some of its photos missing is a broken ad.
+ */
+async function downloadAdPhotos(
+  adId: string,
+  urls: string[],
+  targetDir: string,
+  hdImages: boolean,
+): Promise<void> {
+  const stagingDir = path.join(
+    app.getPath('userData'),
+    'AdImagesStaging',
+    path.basename(targetDir),
+  );
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  fs.mkdirSync(stagingDir, { recursive: true });
+  console.log('[getCarData] Downloading photos', { count: urls.length, stagingDir });
+
+  try {
+    for (const [index, url] of urls.entries()) {
+      const target = path.join(stagingDir, `${index}.jpg`);
+      try {
+        await downloadImage(url, target);
+        // HD photos are uploaded untouched; standard ones are softened so the
+        // replacement is not byte-identical to the ad it replaces.
+        if (!hdImages) await reduceSharpnessDesaturateAndBlurEdges(target);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.warn('[getCarData] Photo download failed', { url, reason });
+        throw new Error(
+          `Slike ${index + 1} od ${urls.length} za oglas ${adId} ni bilo mogoče prenesti (${reason}). ` +
+            'Obnova je prekinjena, oglas ni bil spremenjen. Poskusite znova.',
+        );
+      }
+    }
+
+    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    fs.renameSync(stagingDir, targetDir);
+  } catch (error) {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    throw error;
   }
 }
 
@@ -364,8 +438,8 @@ const submitEditAndVerify = async (
 };
 
 /**
- * Scrapes every field off an ad's edit form, then rewrites the parts of it
- * that identify the car and re-submits.
+ * Scrapes every field off an ad's edit form, secures its photos on disk, then
+ * rewrites the parts of it that identify the car and re-submits.
  *
  * The rewrite is deliberate, and it is applied to the ad we are about to
  * delete rather than to its replacement: the new ad has to stay accurate for
@@ -456,35 +530,10 @@ export const getCarData = async (
     carData.push({ name: 'gorivoText', value: gorivoSelect.selectedText });
   }
 
-  if (testMode) {
-    console.log('[getCarData] Test mode: skipping edit-form mutation and submit');
-  } else {
-    const priceField = inputs.find((i) => i.name === 'cena');
-    const letoRegValue = fieldValue(carData, 'letoReg');
-    const kmValue = fieldValue(carData, 'prevozenikm');
-    const vinValue = fieldValue(carData, 'VIN');
-
-    // Written before anything on the page is touched, so there is a complete
-    // copy of the ad — description included — even if the edit below is
-    // rejected halfway or the replacement never publishes.
-    writeOriginalAdSnapshot(adId, adType, carData);
-
-    // Generated up front so the read-back has an exact string to look for
-    // inside the saved description.
-    const archiveMarker = htmlOpis !== null ? `ARHIV-${adId}-${randomSuffix()}` : null;
-
-    await submitEditAndVerify(page, editUrl, {
-      newPrice: priceField
-        ? String(Math.max(100, (parseInt(priceField.value, 10) || 1000) + randomPriceOffset()))
-        : null,
-      newYear: letoRegValue ? randomRegistrationYear(letoRegValue) : null,
-      newKm: kmValue ? randomMileage(kmValue) : null,
-      clearVin: vinValue !== undefined,
-      archiveNote: archiveMarker === null ? null : buildArchiveNote(adId, carData, archiveMarker),
-      archiveMarker,
-    });
-  }
-
+  // Photos come before the rewrite below, not after it. A photo that cannot be
+  // fetched has to stop the renewal while the live ad is still untouched;
+  // stopping after the rewrite left it online with a made-up price, year and
+  // mileage, which the next attempt then scraped as the "original".
   console.log('[getCarData] Navigating to images page');
   await page.goto(`${AVTONET_IMAGES_PREFIX}${adId}`, { timeout: 0 });
   await wait(3);
@@ -512,27 +561,50 @@ export const getCarData = async (
     adImages = adImages.map((img) => img.replace('.jpg', '_HD.jpg'));
   }
 
-  carData.push({ name: 'images', value: adImages });
-
-  const adImagesDirectory = getAdImagesDirectory(carData, userDataPath, adType);
+  const adImagesDirectory = resolveAdImagesDirectory(carData, userDataPath, adType);
   carData.imagePath = adImagesDirectory;
 
   if (!fs.existsSync(adImagesDirectory)) {
-    console.log('[getCarData] Creating images directory', { path: adImagesDirectory });
-    fs.mkdirSync(adImagesDirectory, { recursive: true });
-
-    for (const [index, image] of adImages.entries()) {
-      const target = path.join(adImagesDirectory, `${index}.jpg`);
-      await downloadImage(image, target);
-      // HD photos are uploaded untouched; standard ones are softened so the
-      // replacement is not byte-identical to the ad it replaces.
-      if (!hdImages && fs.existsSync(target)) {
-        await reduceSharpnessDesaturateAndBlurEdges(target);
-      }
-    }
+    await downloadAdPhotos(adId, adImages, adImagesDirectory, hdImages);
   } else {
     console.log('[getCarData] Images already downloaded', { path: adImagesDirectory });
   }
+
+  if (testMode) {
+    console.log('[getCarData] Test mode: skipping edit-form mutation and submit');
+  } else {
+    // The photo step navigated away, and the rewrite types into the open form.
+    await page.goto(editUrl, { timeout: 0 });
+    await page.waitForSelector('button[name=ADVIEW]', { timeout: 0 });
+    await wait(3);
+
+    const priceField = inputs.find((i) => i.name === 'cena');
+    const letoRegValue = fieldValue(carData, 'letoReg');
+    const kmValue = fieldValue(carData, 'prevozenikm');
+    const vinValue = fieldValue(carData, 'VIN');
+
+    // Written before anything on the page is touched, so there is a complete
+    // copy of the ad — description included — even if the edit below is
+    // rejected halfway or the replacement never publishes.
+    writeOriginalAdSnapshot(adId, adType, carData);
+
+    // Generated up front so the read-back has an exact string to look for
+    // inside the saved description.
+    const archiveMarker = htmlOpis !== null ? `ARHIV-${adId}-${randomSuffix()}` : null;
+
+    await submitEditAndVerify(page, editUrl, {
+      newPrice: priceField
+        ? String(Math.max(100, (parseInt(priceField.value, 10) || 1000) + randomPriceOffset()))
+        : null,
+      newYear: letoRegValue ? randomRegistrationYear(letoRegValue) : null,
+      newKm: kmValue ? randomMileage(kmValue) : null,
+      clearVin: vinValue !== undefined,
+      archiveNote: archiveMarker === null ? null : buildArchiveNote(adId, carData, archiveMarker),
+      archiveMarker,
+    });
+  }
+
+  carData.push({ name: 'images', value: adImages });
 
   // Written every time, not just on download, so sets saved by earlier
   // versions pick up a proper name the next time their ad is renewed. The
